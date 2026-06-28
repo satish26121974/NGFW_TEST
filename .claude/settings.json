@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh 10.80.80.57*)",
+      "Bash(ssh -i*root_10_80_80_57*)",
+      "Bash(ssh -p 19822 root@10.80.80.57*)",
+      "Bash(ssh -o*10.80.80.57*)",
+      "Bash(scp*10.80.80.57*)",
+      "Bash(scp -i*root_10_80_80_57*)"
+    ]
+  }
+}
