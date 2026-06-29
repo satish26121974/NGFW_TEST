@@ -83,7 +83,7 @@ STEP 3: Wait for owner confirmation → then and only then make changes
 | P3 | IPS/IDS — Code Review & Test Coverage | P0 | Claude | ✅ Complete | 2026-06-29 | Snort 3.1.82 — CRITICAL: combined.rules empty, IPS deaf |
 | P4 | Bug Fixes — Issues Found in P1/P3 | P1 | Claude | ✅ Complete | 2026-06-29 | B1+B2+B3 fixed on router |
 | P5 | Missing Feature Design — G01–G12 | P2 | Claude | ✅ Complete | 2026-06-29 | DESIGN.md written — 8 features designed |
-| P6 | Missing Feature Implementation | P5 | Claude | 🔄 In progress | 2026-06-29 | Starting G02 first (90% already built) |
+| P6 | Missing Feature Implementation | P5 | Claude | ✅ Complete | 2026-06-29 | G02+F44+F52+F49+F50+F51 deployed on router |
 | P7 | New Requirements Implementation (F44–F54) | P0 | Claude | ⬜ Not started | After P0 | — |
 | P8 | Test Execution — Section 1 (Functional) | P1 | Claude | ⬜ Not started | After P1 | — |
 | P9 | Test Execution — Section 2 (NG Security) | P6 | Claude | ⬜ Not started | After P6 | — |
