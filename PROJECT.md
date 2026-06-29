@@ -81,7 +81,7 @@ STEP 3: Wait for owner confirmation → then and only then make changes
 | P1 | Feature Audit — Claimed vs Code Reality | P0 | Claude | ✅ Complete | 2026-06-29 | 23 verified, 8 partial, 5 missing, 3 new found |
 | P2 | Gap Analysis & Priority Ranking | P1 | Claude | ✅ Complete | 2026-06-29 | 3 critical bugs, 6 missing features ranked — see below |
 | P3 | IPS/IDS — Code Review & Test Coverage | P0 | Claude | ✅ Complete | 2026-06-29 | Snort 3.1.82 — CRITICAL: combined.rules empty, IPS deaf |
-| P4 | Bug Fixes — Issues Found in P1/P3 | P1 | Claude | ⬜ Not started | Next | 3 bugs ready to fix |
+| P4 | Bug Fixes — Issues Found in P1/P3 | P1 | Claude | ✅ Complete | 2026-06-29 | B1+B2+B3 fixed on router |
 | P5 | Missing Feature Design — G01–G12 | P2 | Claude | ⬜ Not started | After P2 | — |
 | P6 | Missing Feature Implementation | P5 | Claude | ⬜ Not started | After P5 | — |
 | P7 | New Requirements Implementation (F44–F54) | P0 | Claude | ⬜ Not started | After P0 | — |
@@ -103,11 +103,11 @@ STEP 3: Wait for owner confirmation → then and only then make changes
 
 ### 🔴 CRITICAL BUGS — Fix Before Any Testing
 
-| # | Bug | File | Impact |
-|---|-----|------|--------|
-| B1 | `combined.rules` is empty (1 line `#`) — IPS loads Snort but fires ZERO rules | `/etc/snort/rules/combined.rules` | IPS completely deaf even when enabled |
-| B2 | `IPSSTART` elif checks `"connectivity"` instead of `"max"` for max+no-log mode | `/usr/local/bin/IPSSTART` | max-detect mode without logging never starts |
-| B3 | `sleeo 40` typo in crontab for `GETWIP` | `/etc/crontabs/root` | GETWIP cron job never executes |
+| # | Bug | File | Impact | Status |
+|---|-----|------|--------|--------|
+| B1 | `combined.rules` was empty — IPS fired ZERO rules | `/etc/snort/rules/combined.rules` | IPS completely deaf | ✅ Fixed 2026-06-29 — copied 44436-line ipsrules.rules |
+| B2 | `IPSSTART` elif checked `"connectivity"` for max+no-log mode | `/usr/local/bin/IPSSTART` | max-detect no-log mode never started | ✅ Fixed 2026-06-29 — elif now checks `"max"` |
+| B3 | `sleeo 40` typo in crontab for `GETWIP` | `/etc/crontabs/root` | GETWIP never executed | ✅ Fixed 2026-06-29 — corrected to `sleep`, cron restarted |
 
 ### 🟠 HIGH — Missing Features to Build
 
