@@ -77,9 +77,9 @@ STEP 3: Wait for owner confirmation → then and only then make changes
 
 | Phase | Name | Depends On | Owner | Status | ETA | Completion |
 |-------|------|------------|-------|--------|-----|------------|
-| P0 | Codebase Discovery & Architecture Mapping | Code access | Claude | ⬜ Not started | On code access | — |
-| P1 | Feature Audit — Claimed vs Code Reality | P0 | Claude | ⬜ Not started | After P0 | — |
-| P2 | Gap Analysis & Priority Ranking | P1 | Claude | ⬜ Not started | After P1 | — |
+| P0 | Codebase Discovery & Architecture Mapping | Code access | Claude | ✅ Complete | 2026-06-29 | Architecture mapped, all daemons identified |
+| P1 | Feature Audit — Claimed vs Code Reality | P0 | Claude | ✅ Complete | 2026-06-29 | 23 verified, 8 partial, 5 missing, 3 new found |
+| P2 | Gap Analysis & Priority Ranking | P1 | Claude | 🔄 In progress | 2026-06-29 | See FEATURES.md Gaps table |
 | P3 | IPS/IDS — Code Review & Test Coverage | P0 | Claude | ⬜ Not started | After P0 | — |
 | P4 | Bug Fixes — Issues Found in P1 | P1 | Claude | ⬜ Not started | After P1 | — |
 | P5 | Missing Feature Design — G01–G12 | P2 | Claude | ⬜ Not started | After P2 | — |
