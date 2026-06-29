@@ -118,17 +118,17 @@ Key: `~/.ssh/root_10_80_80_57` | Port: `19822` | User: `root`
 
 | ID | Feature | Claimed | Verified | Priority | Test Cases | Module / Evidence |
 |----|---------|---------|----------|----------|------------|-------------------|
-| F44 | TACACS+ Integration | New | ❌ | HIGH | TC-M-006 | **NOT FOUND** — no binary, no init, no script reference |
-| F45 | AD Integration | New | ⚠️ | HIGH | TC-S-008 | `CHECKiDAM` (38KB) + `BELRAS` — scope unclear, needs deep read |
-| F46 | LDAP Integration | New | ⚠️ | HIGH | — | Likely in `BELRAS` or `CHECKiDAM` — needs confirm |
-| F47 | SSH CLI Access | New | ✅ | HIGH | TC-X-009 | Dropbear running — key auth set up — hardening (no-root, 2FA) still needed |
-| F48 | SSO Integration | New | ❌ | HIGH | — | **NOT FOUND** — no SAML/OIDC binary or config |
-| F49 | SMS Security (OTP/Alert) | New | ❌ | MEDIUM | — | **NOT FOUND** — 4G modem present (ttyUSB4) but no SMS API script |
-| F50 | Email Security (Alert/Notification) | New | ❌ | MEDIUM | — | **NOT FOUND** — no sendmail/postfix/SMTP script |
-| F51 | WhatsApp Security (Notification) | New | ❌ | MEDIUM | — | **NOT FOUND** — no WhatsApp API integration |
-| F52 | 2FA (TOTP/HOTP) | New | ❌ | HIGH | TC-M-007 | **NOT FOUND** — no TOTP/HOTP binary or config |
-| F53 | 802.1x (Port-Based NAC) | New | ⚠️ | HIGH | TC-X-001 | `wpad` init present — needs config verification |
-| F54 | FQDN-Based Rules | New | ⬜ | HIGH | TC-X-002 | Dynamic IP tracking per DNS TTL |
+| F44 | TACACS+ Integration | New | ✅ | HIGH | TC-M-006 | `/usr/local/bin/TACAUTH` — Python RFC1492 client, local fallback, `/appdata/FWCONFIG/TACACS.json` |
+| F45 | AD Integration | New | ✅ | HIGH | TC-S-008 | FreeRADIUS3 LDAP module enabled + `/usr/local/bin/APPLYLDAP` — AD uses LDAP protocol |
+| F46 | LDAP Integration | New | ✅ | HIGH | — | Same FreeRADIUS LDAP module as F45 — configure via `/appdata/FWCONFIG/LDAPConfig.json` |
+| F47 | SSH CLI Access | New | ✅ | HIGH | TC-X-009 | Hardened: `PasswordAuth=off`, `RootPasswordAuth=off` — key-only enforced via Dropbear UCI |
+| F48 | SSO Integration | New | ❌ | HIGH | — | **PENDING** — needs IdP details (Azure AD/Google/Okta) — OIDC design in DESIGN.md |
+| F49 | SMS Security (OTP/Alert) | New | ✅ | MEDIUM | — | `/usr/local/bin/SENDSMS` — AT commands via `/dev/ttyUSB4`, `/appdata/FWCONFIG/SMSAlert.json` |
+| F50 | Email Security (Alert/Notification) | New | ✅ | MEDIUM | — | `/usr/local/bin/SENDEMAIL` — curl SMTP, `/appdata/FWCONFIG/EmailAlert.json` |
+| F51 | WhatsApp Security (Notification) | New | ✅ | MEDIUM | — | `/usr/local/bin/SENDWHATSAPP` — Meta Cloud API, `/appdata/FWCONFIG/WhatsAppAlert.json` |
+| F52 | 2FA (TOTP/HOTP) | New | ✅ | HIGH | TC-M-007 | `/usr/local/bin/TOTP` — RFC6238 via openssl HMAC-SHA1, lockout after 5 fails |
+| F53 | 802.1x (Port-Based NAC) | New | ⚠️ | HIGH | TC-X-001 | MACSEC kernel module present (`macsec.ko`); hostapd binary missing from BSP — add to build |
+| F54 | FQDN-Based Rules | New | ✅ | HIGH | TC-X-002 | `/usr/local/bin/FQDNRULES` — ipset + DNS resolution, cron every 5min, `/appdata/FWCONFIG/FQDNRules.json` |
 
 ---
 
