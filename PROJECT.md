@@ -79,9 +79,9 @@ STEP 3: Wait for owner confirmation → then and only then make changes
 |-------|------|------------|-------|--------|-----|------------|
 | P0 | Codebase Discovery & Architecture Mapping | Code access | Claude | ✅ Complete | 2026-06-29 | Architecture mapped, all daemons identified |
 | P1 | Feature Audit — Claimed vs Code Reality | P0 | Claude | ✅ Complete | 2026-06-29 | 23 verified, 8 partial, 5 missing, 3 new found |
-| P2 | Gap Analysis & Priority Ranking | P1 | Claude | 🔄 In progress | 2026-06-29 | See FEATURES.md Gaps table |
-| P3 | IPS/IDS — Code Review & Test Coverage | P0 | Claude | ⬜ Not started | After P0 | — |
-| P4 | Bug Fixes — Issues Found in P1 | P1 | Claude | ⬜ Not started | After P1 | — |
+| P2 | Gap Analysis & Priority Ranking | P1 | Claude | ✅ Complete | 2026-06-29 | 3 critical bugs, 6 missing features ranked — see below |
+| P3 | IPS/IDS — Code Review & Test Coverage | P0 | Claude | ✅ Complete | 2026-06-29 | Snort 3.1.82 — CRITICAL: combined.rules empty, IPS deaf |
+| P4 | Bug Fixes — Issues Found in P1/P3 | P1 | Claude | ⬜ Not started | Next | 3 bugs ready to fix |
 | P5 | Missing Feature Design — G01–G12 | P2 | Claude | ⬜ Not started | After P2 | — |
 | P6 | Missing Feature Implementation | P5 | Claude | ⬜ Not started | After P5 | — |
 | P7 | New Requirements Implementation (F44–F54) | P0 | Claude | ⬜ Not started | After P0 | — |
@@ -96,6 +96,110 @@ STEP 3: Wait for owner confirmation → then and only then make changes
 | P16 | Final Regression | All | Claude | ⬜ Not started | Last | — |
 
 **Status**: ⬜ Not started | 🔄 In progress | ✅ Complete | ❌ Blocked | ⚠️ Needs review
+
+---
+
+## P2 — Gap Analysis & Priority Ranking (2026-06-29)
+
+### 🔴 CRITICAL BUGS — Fix Before Any Testing
+
+| # | Bug | File | Impact |
+|---|-----|------|--------|
+| B1 | `combined.rules` is empty (1 line `#`) — IPS loads Snort but fires ZERO rules | `/etc/snort/rules/combined.rules` | IPS completely deaf even when enabled |
+| B2 | `IPSSTART` elif checks `"connectivity"` instead of `"max"` for max+no-log mode | `/usr/local/bin/IPSSTART` | max-detect mode without logging never starts |
+| B3 | `sleeo 40` typo in crontab for `GETWIP` | `/etc/crontabs/root` | GETWIP cron job never executes |
+
+### 🟠 HIGH — Missing Features to Build
+
+| Priority | Feature | ID | Est. Effort | Dependency |
+|----------|---------|-----|-------------|------------|
+| 1 | Fix IPS rules pipeline — link IPSDATA/RULEFILE → combined.rules | B1 fix | 2–4 hrs | None — fix first |
+| 2 | TACACS+ Integration | F44 | 8–12 hrs | radiusd already present |
+| 3 | 2FA TOTP/HOTP | F52 | 6–10 hrs | Dropbear + LuCI + API |
+| 4 | SSL/TLS Inspection | G02 | 16–24 hrs | Largest gap — no MITM engine found |
+| 5 | SSO SAML/OIDC | F48 | 10–16 hrs | Needs identity provider integration |
+
+### 🟡 MEDIUM — Complete or Add
+
+| Priority | Feature | ID | Est. Effort | Notes |
+|----------|---------|-----|-------------|-------|
+| 6 | SMS OTP / Alert | F49 | 4–6 hrs | 4G modem (ttyUSB4) already present — add AT SMS send |
+| 7 | Email Notifications | F50 | 3–5 hrs | Add SMTP client script |
+| 8 | WhatsApp Notifications | F51 | 3–5 hrs | WhatsApp Business API |
+| 9 | SSTP VPN | F34 | 6–10 hrs | No binary found — needs implementation |
+| 10 | HOME_NET dynamic config in Snort | IPS | 1–2 hrs | Hardcoded 192.168.1.0/24 in homenet.lua |
+| 11 | REST API documentation | G09 | 4–8 hrs | No OpenAPI spec |
+
+### 🟢 LOW — Verify / Minor
+
+| Feature | ID | Notes |
+|---------|-----|-------|
+| VRF formal config | F07 | SDWAN netns works but not exposed via API |
+| SSTP | F34 | Low adoption — consider dropping |
+| Reporting engine | G05 | STAT scripts send data — no report renderer |
+
+---
+
+## P3 — IPS/IDS Deep Review (2026-06-29)
+
+### Snort Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Version | **Snort 3.1.82.0** |
+| Mode | NFQUEUE inline (IPS) via `IPSSTART` |
+| Config | `/etc/snort/snort.lua` |
+| Rules loaded | `/etc/snort/rules/combined.rules` |
+| Rule source | `/usr/local/bin/IPSDATA/RULEFILE/` (65 Talos rule files) |
+| Policy levels | connectivity / balanced / security / max_detect |
+| AppID | OpenAppID at `/usr/lib/openappid` |
+| Alert output | CSV + JSON files |
+| Current status | **DISABLED** (`/appdata/IPSCONFIG.json` → `"Status": "DISABLE"`) |
+
+### Two Snort Instances
+
+| Instance | Config | DAQ | Interface | Purpose |
+|----------|--------|-----|-----------|---------|
+| IPS (not running) | `/etc/snort/snort.lua` | nfq (NFQUEUE) | All WAN | Inline threat prevention |
+| AAR (running) | `/etc/aar/aar-snort.lua` | afpacket | eth1 | App detection for routing |
+
+### 🔴 CRITICAL: IPS Rules Not Loaded
+
+`/etc/snort/rules/combined.rules` contains **only `#`** (1 byte comment).
+
+`snort.lua` includes this file:
+```lua
+ips = { include = '/etc/snort/rules/combined.rules' }
+```
+
+The 65 Talos rule files in `IPSDATA/RULEFILE/` are **never loaded**.
+Result: Even if IPS is enabled, **zero rules fire**. System is completely blind.
+
+**Fix required**: Build `combined.rules` from the IPSDATA rule files using rule states.
+
+### Talos Rule Coverage (65 categories present)
+Browser exploits · Malware (backdoor/CNC/tools) · Exploit kits · File types (exe/flash/java/office/pdf) · Indicators (compromise/shellcode/obfuscation/scan) · OS (Linux/Windows/mobile) · Protocols (DNS/FTP/ICMP/SMTP/VOIP/SCADA) · Server attacks (Apache/IIS/MySQL/MSSQL/Oracle/webapp) · SQL injection · PUA/P2P/adware
+
+### IPS Architecture — Correct Design
+```
+Traffic → iptables NFQUEUE → Snort 3 (per-WAN-queue, multi-core) → ACCEPT/DROP
+                                    ↓
+                         /opt/snortlogs (JSON+CSV alerts)
+                                    ↓
+                         UNIGR8WAYS_IPSSTATUS → Orchestrator
+```
+
+### Issues Found
+
+| # | Issue | Severity | Fix |
+|---|-------|----------|-----|
+| P3-1 | `combined.rules` empty — zero rules loaded | 🔴 CRITICAL | Generate from IPSDATA/RULEFILE + rule states |
+| P3-2 | IPS disabled in IPSCONFIG.json | 🔴 CRITICAL | Enable + test |
+| P3-3 | `elif "connectivity"` bug in max mode | 🟠 HIGH | Fix elif condition in IPSSTART |
+| P3-4 | HOME_NET hardcoded `192.168.1.0/24` in homenet.lua | 🟡 MEDIUM | Make dynamic from UCI/LAN config |
+| P3-5 | `local.lua` sets `mode = tap` but IPSSTART uses `-Q` inline | 🟡 MEDIUM | Align — remove conflicting `local.lua` ips block |
+| P3-6 | No rule update automation | 🟡 MEDIUM | Add scheduled Talos rule update script |
+| P3-7 | `ScanLog=ENABLE` but IPSCONFIG Status=DISABLE — state mismatch | 🟡 MEDIUM | Validate config on enable |
 
 ---
 
