@@ -1,7 +1,7 @@
 # UniGr8ways NGFW — LuCI Application Guide
-> Package suite v1.1.0 | OpenWRT 23.05.x x86_64 | UniGr8ways NGFW
-> All six apps live under **Services** in the LuCI web interface.
-> Each app is now a separate, independently installable package.
+> Package suite v1.2.0 | OpenWRT 23.05.x x86_64 | UniGr8ways NGFW
+> All seven apps live under **Services** in the LuCI web interface.
+> Each app is a separate, independently installable package.
 
 ---
 
@@ -15,6 +15,7 @@
 | `luci-app-2fa` | 2FA / TOTP | `luci-app-2fa_1.1.0-1_all.ipk` | 7.0 KB | luci-base, python3 |
 | `luci-app-fqdn` | FQDN Rules | `luci-app-fqdn_1.1.0-1_all.ipk` | 5.9 KB | luci-base, jq |
 | `luci-app-alerts` | Alert Notifications | `luci-app-alerts_1.1.0-1_all.ipk` | 8.3 KB | luci-base, jq |
+| `luci-app-sms-gateway` | SMS Gateway | `luci-app-sms-gateway_1.0.0-1_all.ipk` | 9.8 KB | luci-base, python3 |
 | `luci-app-ngfw-security` | **Meta (all above)** | `luci-app-ngfw-security_1.1.0-1_all.ipk` | — | all 6 packages |
 
 All `.ipk` files are at `packages/<package-name>/` in the GitHub repo.
@@ -33,6 +34,7 @@ opkg install luci-app-tacacs_1.1.0-1_all.ipk
 opkg install luci-app-2fa_1.1.0-1_all.ipk
 opkg install luci-app-fqdn_1.1.0-1_all.ipk
 opkg install luci-app-alerts_1.1.0-1_all.ipk
+opkg install luci-app-sms-gateway_1.0.0-1_all.ipk
 ```
 
 ### Option B — Install everything via meta-package
@@ -52,7 +54,8 @@ src-link ngfw /path/to/NGFW_TEST/packages
 ```bash
 ./scripts/feeds update ngfw
 ./scripts/feeds install luci-app-ssl-inspection luci-app-ad-ldap \
-  luci-app-tacacs luci-app-2fa luci-app-fqdn luci-app-alerts
+  luci-app-tacacs luci-app-2fa luci-app-fqdn luci-app-alerts \
+  luci-app-sms-gateway
 ```
 
 #### 3. Enable in `.config`
@@ -64,6 +67,7 @@ CONFIG_PACKAGE_luci-app-tacacs=y
 CONFIG_PACKAGE_luci-app-2fa=y
 CONFIG_PACKAGE_luci-app-fqdn=y
 CONFIG_PACKAGE_luci-app-alerts=y
+CONFIG_PACKAGE_luci-app-sms-gateway=y
 
 # Or install everything via meta-package
 # CONFIG_PACKAGE_luci-app-ngfw-security=y
@@ -102,7 +106,7 @@ CONFIG_PACKAGE_fail2ban=y
 ```bash
 make image PROFILE=x86_64 PACKAGES="\
   luci-app-ssl-inspection luci-app-ad-ldap luci-app-tacacs \
-  luci-app-2fa luci-app-fqdn luci-app-alerts \
+  luci-app-2fa luci-app-fqdn luci-app-alerts luci-app-sms-gateway \
   luci-base python3 jq \
   freeradius3 freeradius3-default \
   wpad-openssl -wpad \
@@ -910,6 +914,160 @@ All events logged via syslog: logger -t SENDALERT
 
 ---
 
+# App 7 — SMS Gateway
+
+**Package:** `luci-app-sms-gateway` | `luci-app-sms-gateway_1.0.0-1_all.ipk`
+**Menu path:** Services → SMS Gateway → Settings / Test & Log
+**Config file:** `/appdata/FWCONFIG/SMSGateway.json`
+**Backend:** `/usr/local/bin/SENDSMS_GW` (Python3, stdlib only)
+
+---
+
+## How It Works
+
+```
+SENDALERT or SENDSMS_GW called with <number> <message>
+          │
+          ▼
+   Read SMSGateway.json
+   Status == ENABLE?  ──No──► exit (or fallback to modem)
+          │ Yes
+          ▼
+   Select provider handler
+          │
+  ┌───────┼──────────────────────────────────────┐
+  ▼       ▼          ▼          ▼         ▼      ▼
+Fast2SMS  MSG91   Twilio    Vonage  TextLocal  Custom
+GET API  POST JSON POST Auth POST form POST form HTTP
+  │
+  ▼
+curl/urllib.request → Provider REST API
+          │
+  ┌───────┴──────────┐
+  │ HTTP 2xx  OK     │ HTTP 4xx/5xx or timeout
+  │ Log SENT         │ Log FAILED
+  └──────────────────┘ FallbackToModem=true?
+                               │ Yes
+                               ▼
+                       /usr/local/bin/SENDSMS
+                       (AT commands via /dev/ttyUSB4)
+```
+
+Uses Python3 standard library only — no extra packages required beyond `python3`.
+
+---
+
+## Supported Providers
+
+| Provider | Region | API Type | DLT Required | Free Tier |
+|----------|--------|----------|-------------|-----------|
+| **Fast2SMS** | India | GET + auth header | Yes (India) | 200 credits |
+| **MSG91** | India | POST JSON + authkey | Yes (India) | 100 SMS |
+| **Twilio** | Global | POST Basic Auth | No | $15 trial |
+| **Vonage** | Global | POST form + api_key | No | €2 credit |
+| **TextLocal** | India | POST form + apikey | Yes (India) | 10 SMS |
+| **Custom HTTP** | Any | Configurable URL/method/body/headers | Depends | — |
+
+**Template variables for Custom provider:** `{ApiKey}` `{SenderId}` `{Numbers}` `{Number}` `{Message}`
+
+> **India DLT Note:** All SMS providers in India require DLT (Distributed Ledger Technology) registration with your telecom operator. You must register your Sender ID (e.g. `NGFWMS`) and pre-approve your message template before alerts will be delivered.
+
+---
+
+## What You Can Achieve
+
+| Goal | How |
+|------|-----|
+| Send alerts via Fast2SMS (cheap India) | Provider=fast2sms, set API key + Sender ID + DLT route |
+| Send via corporate MSG91 account | Provider=msg91, set Auth Key + Flow ID |
+| Send globally via Twilio | Provider=twilio, set Account SID + Auth Token + From Number |
+| Use any SMS REST API | Provider=custom, set URL with `{Message}` and `{Numbers}` template vars |
+| Retry via modem if gateway fails | Enable FallbackToModem toggle |
+| Send test SMS to verify setup | Test & Log tab → Send Test SMS |
+| Monitor delivery history | Test & Log tab → Send Log |
+
+---
+
+## Dependencies
+
+| Dependency | Required | Notes |
+|-----------|----------|-------|
+| `python3` | Yes | Pre-installed — SENDSMS_GW uses only stdlib |
+| `urllib`, `json`, `ssl` | Yes | Python3 standard library — no extra packages |
+| SMS Gateway account | Yes (remote) | Account with one of the supported providers |
+| Internet access | Yes | Router WAN must reach provider API endpoint |
+| 4G modem + SIM | Only if fallback | `/dev/ttyUSB4` for modem fallback mode |
+
+---
+
+## Settings Page Features
+
+| Field | Description |
+|-------|-------------|
+| Enable Gateway SMS | Toggle to activate HTTP gateway sending |
+| Provider dropdown | Selects provider — form fields change dynamically per selection |
+| Recipients | E.164 phone numbers, one per line |
+| Fallback to Modem | Retry via AT commands if HTTP call fails |
+| **Fast2SMS fields** | API Key, Sender ID, Route (q=Quick / dlt=DLT) |
+| **MSG91 fields** | Auth Key, Sender ID, Flow ID (DLT template) |
+| **Twilio fields** | Account SID, Auth Token, From Number |
+| **Vonage fields** | API Key, API Secret, Sender ID |
+| **TextLocal fields** | API Key, Sender ID |
+| **Custom fields** | URL, HTTP Method, API Key, Sender ID, Body template, Headers JSON |
+
+---
+
+## Expected Behaviour
+
+| Action | Expected Result |
+|--------|----------------|
+| Save with Status=DISABLE | Config saved, no HTTP calls made |
+| Save with Status=ENABLE | Config saved, gateway active |
+| Send test to valid number | HTTP call to provider, SMS delivered, log entry created |
+| Wrong API key | Provider returns 401/403, logged as FAILED, fallback triggered if enabled |
+| Internet not reachable | urllib timeout, logged as FAILED, fallback to modem if enabled |
+| FallbackToModem=true, gateway fails | SENDSMS script called with AT commands via /dev/ttyUSB4 |
+| Check Status button | Shows current provider, status, and configured numbers |
+| Load log | Shows last 30 send events with timestamp, provider, result |
+
+## What Is NOT Supported
+
+- Receiving SMS (inbound) — SENDSMS_GW is outbound only
+- SMS delivery receipts / DLR callbacks — no webhook endpoint
+- Message queuing / retry on failure (except modem fallback)
+- Unicode/multilingual SMS — plain ASCII only in current implementation
+- MMS / multimedia messages
+- Multiple simultaneous providers — one active provider at a time
+- Scheduled / delayed SMS — only immediate dispatch
+
+---
+
+## Test Cases
+
+| TC | Test | Steps | Expected |
+|----|------|-------|----------|
+| SGW-01 | Settings page loads | Navigate to Services → SMS Gateway → Settings | Form with provider dropdown and dynamic fields |
+| SGW-02 | Provider change | Select Twilio from dropdown | Fields change to Account SID / Auth Token / From Number |
+| SGW-03 | Save disabled | Status=DISABLE, Save | Config saved, gateway inactive |
+| SGW-04 | Save enabled | Fill Fast2SMS credentials, Status=ENABLE, Save | Config saved, notification "saved" |
+| SGW-05 | Test & Log page | Navigate to Test & Log | Status cards, test form, log section |
+| SGW-06 | Check Status | Click Check Status | Shows provider, status, numbers from config |
+| SGW-07 | Send test Fast2SMS | Valid API key, send to test number | SMS received, log shows SENT |
+| SGW-08 | Send test invalid key | Wrong API key, send test | Error in log, notification shows FAILED |
+| SGW-09 | Send test Twilio | Valid Twilio creds, send | SMS received from Twilio number |
+| SGW-10 | Send test Vonage | Valid Vonage creds, send | SMS received |
+| SGW-11 | Send test Custom | Custom URL pointing to test endpoint, send | HTTP call made, log shows HTTP 200 |
+| SGW-12 | Send to all numbers | Click "Send to All Numbers" | All configured recipients receive SMS |
+| SGW-13 | Fallback to modem | Gateway fails (wrong key) + FallbackToModem=true | SENDSMS called, modem SMS sent |
+| SGW-14 | No internet | Disconnect WAN, send test | Timeout error in log, fallback if enabled |
+| SGW-15 | Log persists | Send 3 tests, reload page | All 3 entries in log, newest first |
+| SGW-16 | Clear log | Click Clear Log | Log empty, confirmation shown |
+| SGW-17 | Config persists | Save, navigate away, return | All credentials and settings preserved |
+
+---
+
+---
+
 # Inter-App Dependencies and Interactions
 
 ```
@@ -942,7 +1100,9 @@ SSL Inspection (Squid ssl_bump)
 | iptables REDIRECT missing | HTTPS traffic bypasses Squid — run SSLBUMPSTART to restore |
 | e2guardian / c-icap down | SSL Inspection still decrypts but URL/AV filtering disabled |
 | FreeRADIUS3 not running | LDAP auth fails (TACACS+ unaffected) |
-| No 4G modem | SMS channel fails (Email/WhatsApp unaffected) |
+| No 4G modem | SENDSMS (modem) fails — use luci-app-sms-gateway as alternative |
+| SMS Gateway disabled/wrong key | Gateway send fails — fallback to modem if FallbackToModem=true |
+| No internet on WAN | SMS Gateway cannot reach provider API — fallback to modem if enabled |
 | dnsmasq not running | FQDN Rules cannot resolve domains |
 | cron not running | FQDN Rules never refreshes (manually OK) |
 | SENDALERT dispatcher fails | No alerts on any channel |
@@ -960,6 +1120,7 @@ SSL Inspection (Squid ssl_bump)
 | 4 | `luci-app-2fa` | 2FA TOTP | Services → 2FA/TOTP | `2FA.json` | `TOTP` | Status=ENABLE |
 | 5 | `luci-app-fqdn` | FQDN Rules | Services → FQDN Rules | `FQDNRules.json` | `FQDNRULES` | Status=ENABLE |
 | 6 | `luci-app-alerts` | Alerts | Services → Alert Notifications | `SMSAlert.json` `EmailAlert.json` `WhatsAppAlert.json` | `SENDALERT` | Per-channel Status |
+| 7 | `luci-app-sms-gateway` | SMS Gateway | Services → SMS Gateway | `SMSGateway.json` | `SENDSMS_GW` | Status=ENABLE |
 
 > **Orchestrator note:** All `/appdata/FWCONFIG/*.json` files are pushed and overwritten by the orchestrator on each sync. Local LuCI edits will be overridden on the next push unless the orchestrator config is also updated.
 >
@@ -977,7 +1138,8 @@ SSL Inspection (Squid ssl_bump)
 | `luci-app-2fa` | 2FA TOTP | 14 |
 | `luci-app-fqdn` | FQDN Rules | 15 |
 | `luci-app-alerts` | Alert Notifications | 21 |
-| **Total** | | **97** |
+| `luci-app-sms-gateway` | SMS Gateway | 17 |
+| **Total** | | **114** |
 
 ---
 
