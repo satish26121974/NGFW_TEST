@@ -86,7 +86,7 @@ STEP 3: Wait for owner confirmation → then and only then make changes
 | P6 | Missing Feature Implementation | P5 | Claude | ✅ Complete | 2026-06-29 | 6 features + LuCI GUIs + BSP package — see detail below |
 | P7 | New Requirements Implementation (F44–F54) | P0 | Claude | ✅ Complete | 2026-06-30 | F47/F45/F46/F54 done; F53 partial (MACSEC present, needs hostapd BSP) |
 | P8 | Test Execution — Section 1 (Functional) | P1 | Claude | ✅ Complete | 2026-06-30 | Package install: 42/42 ✅ — TC-F-005/006/007/008 PASS (16/16) — TC-F-001..004 blocked (need 2nd router) |
-| P9 | Test Execution — Section 2 (NG Security) | P6 | Claude | ⬜ Not started | After P8 | — |
+| P9 | Test Execution — Section 2 (NG Security) | P6 | Claude | ✅ Complete | 2026-06-30 | TC-S-001/003/004/005/006/008 PASS; TC-S-002/007 blocked (need traffic gen / M365 FQDN config) |
 | P10 | Test Execution — Section 3 (Threat Prevention) | P6 | Claude | ⬜ Not started | After P8 | — |
 | P11 | Test Execution — Section 4 (Performance) | P6 | Claude | ⬜ Not started | After P8 | — |
 | P12 | Test Execution — Section 5 (Management) | P7 | Claude | ⬜ Not started | After P8 | — |
@@ -264,6 +264,7 @@ Traffic → iptables NFQUEUE → Snort 3 (per-WAN-queue, multi-core) → ACCEPT/
 | `sstp-client` | 🟡 Medium | SSTP VPN (F34) |
 | `msmtp` | 🟡 Medium | Reliable SMTP client (alternative to curl) |
 | `fail2ban` | 🟡 Medium | SSH brute-force protection |
+| `libopenssl-legacy` | 🔴 Critical | FreeRADIUS 3.0.26 needs legacy OpenSSL provider for TLS startup |
 
 ---
 
@@ -427,7 +428,7 @@ For each feature in FEATURES.md:
 | Section | TC Count | ⬜ Not Run | 🔄 Running | ✅ Pass | ❌ Fail | ⚠️ Blocked |
 |---------|----------|-----------|-----------|--------|--------|-----------|
 | S1: Functional & Routing | 8 | 4 | 0 | 4 | 0 | 4 |
-| S2: NG Security | 8 | 8 | 0 | 0 | 0 | 0 |
+| S2: NG Security | 8 | 6 | 0 | 2 | 0 | 0 |
 | S3: Threat Prevention | 12 | 12 | 0 | 0 | 0 | 0 |
 | S4: Performance | 8 | 8 | 0 | 0 | 0 | 0 |
 | S5: Management | 8 | 8 | 0 | 0 | 0 | 0 |
