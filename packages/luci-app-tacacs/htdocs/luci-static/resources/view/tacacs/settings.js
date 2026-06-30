@@ -36,15 +36,48 @@ return view.extend({
 	},
 
 	_toggle: function(id, checked, label) {
-		var cb = E('input', { 'id': id, 'type': 'checkbox', 'class': 'cbi-input-checkbox' });
-		if (checked) cb.setAttribute('checked', 'checked');
-		return E('div', { 'style': 'display:flex;align-items:center;gap:10px;flex-wrap:nowrap' }, [
-			E('div', { 'style': 'flex-shrink:0' }, [cb]),
-			E('label', {
+		/* Hidden native checkbox — still readable by handleSave via .checked */
+		var cb = E('input', {
+			'id': id, 'type': 'checkbox',
+			'style': 'position:absolute;opacity:0;width:0;height:0'
+		});
+		if (checked) cb.checked = true;
+
+		/* Sliding knob inside the track */
+		var knob = E('span', {
+			'style': 'position:absolute;top:3px;left:' + (checked ? '22px' : '3px') + ';' +
+			         'width:16px;height:16px;background:#fff;border-radius:50%;' +
+			         'transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.4)'
+		});
+
+		/* Coloured pill track */
+		var track = E('span', {
+			'style': 'display:inline-block;position:relative;width:42px;height:22px;' +
+			         'background:' + (checked ? '#2dce89' : '#ccc') + ';' +
+			         'border-radius:11px;transition:background 0.2s;cursor:pointer;flex-shrink:0'
+		}, [knob]);
+
+		/* Keep visual state in sync with checkbox state */
+		cb.addEventListener('change', function() {
+			var on = cb.checked;
+			track.style.background = on ? '#2dce89' : '#ccc';
+			knob.style.left = on ? '22px' : '3px';
+		});
+
+		/* Clicking the track toggles the hidden checkbox */
+		track.addEventListener('click', function() {
+			cb.checked = !cb.checked;
+			cb.dispatchEvent(new Event('change'));
+		});
+
+		var parts = [cb, track];
+		if (label) {
+			parts.push(E('label', {
 				'for': id,
-				'style': 'font-weight:normal;margin:0;cursor:pointer;line-height:1.4'
-			}, label || '')
-		]);
+				'style': 'margin:0;cursor:pointer;font-weight:normal;line-height:1.4;user-select:none'
+			}, label));
+		}
+		return E('div', { 'style': 'display:inline-flex;align-items:center;gap:10px;position:relative' }, parts);
 	},
 
 	/* ── save handler ───────────────────────────────────────────── */
