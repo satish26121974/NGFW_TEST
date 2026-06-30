@@ -510,7 +510,7 @@ For each feature in FEATURES.md:
 | TC-M-002 | ✅ Pass | UCI rollback: 0.061s; AES-256 backup script present |
 | TC-M-003 | ✅ Pass | CLI write → ubus read confirmed `{"value":"100"}`; single UCI store = structural parity |
 | TC-M-004 | 🔶 Blocked | Local 100/100 events; UDP forwarding mechanism works; remote syslog NOT configured |
-| TC-M-005 | ❌ Fail | No v3 users; encryption not compiled in net-snmp; SNMPv1 ENABLED (security risk) |
+| TC-M-005 | ❌ Fail | No v3 users at test time; SNMPv1 ENABLED. **Partial improvement (SESSION-016):** luci-app-snmp GUI now allows SNMPv3 user creation (authNoPriv verified). Full authPriv requires net-snmp rebuild. |
 | TC-M-006 | ✅ Pass | TACAUTH → `FALLBACK` on unreachable server; LocalFallback=ENABLE; client script functional |
 | TC-M-007 | ✅ Pass | Enroll/verify/lockout all working after fix. Bug: verify used username as secret + lockout unwired. Fixed 2026-06-30. |
 | TC-M-008 | 🔶 Blocked | Auth events logged (login/fail+IP); UCI config changes NOT logged; syslog in RAM (not tamper-proof) |
@@ -540,7 +540,7 @@ For each feature in FEATURES.md:
 | H-SNMP-01 | SNMPv1 disabled | `group public v1 ro` active | Commented out | ✅ Pass |
 | H-SNMP-02 | SNMP access restricted | Open to all hosts | iptables: accept 10.80.80.0/24, drop rest | ✅ Pass |
 | H-SNMP-03 | SNMP placeholders updated | bofh@example.com / HeartOfGold / office | admin@cnergee.com / UniGr8ways-SDWAN / UniGr8ways-DataCenter | ✅ Pass |
-| H-SNMP-04 | SNMPv3 with encryption | No v3 users | Cannot configure — net-snmp compiled without AES/SHA | ❌ Fail |
+| H-SNMP-04 | SNMPv3 with encryption | No v3 users | authNoPriv now working via luci-app-snmp GUI (SESSION-016); authPriv still unavailable — net-snmp compiled without AES | ❌ Fail |
 | H-PERM-SCRPT | config-rw scripts permissions | 777 (world-writable) | 750 | ✅ Pass |
 | H-PERM-JSONCFG | FWCONFIG JSON permissions | 644/777 mixed | 640 | ✅ Pass |
 | H-ICAP | c-icap port 1344 external access | Accessible from any host | iptables: localhost-only (ServerAddress directive unsupported) | ✅ Pass |
@@ -855,3 +855,50 @@ P13 continuation — luci-app-snmp package built and deployed.
 - SNMPAPPLY clears stale usmUser entries before restart so keys are re-derived on each change
 
 **F15-5 status: PARTIALLY addressed** — luci-app-snmp GUI now allows SNMPv3 user creation with SHA auth (authNoPriv). Full authPriv encryption remains unavailable without net-snmp rebuild with AES support.
+
+### SESSION 016 — 2026-07-01
+P13 continuation — Playwright GUI testing of luci-app-snmp, three bugs fixed, .ipk rebuilt, full opkg install flow verified.
+
+**Playwright GUI testing (Python playwright, JSON-RPC auth):**
+- Used `python playwright` with JSON-RPC token auth (POST `/cgi-bin/luci/rpc/auth` → set `sysauth` cookie)
+- Navigated all 4 SNMP tabs (Settings, Communities, SNMPv3 Users, Status) + verified sidebar entry
+- Discovered 3 bugs preventing the GUI from working after SESSION-015 deployment
+
+**Bugs found and fixed:**
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| SNMP section invisible in sidebar | UTF-8 BOM (`ef bb bf`) in `menu.d/luci-app-snmp.json` — LuCI silently skips BOM-prefixed JSON | Stripped BOM in source file; build script now strips BOM from all files via `read_lf()` |
+| `ReferenceError` on all 4 SNMP view pages | SESSION-015 base64-pipe transfer wrote encoded content without decoding — JS files stored as raw base64 text | All 4 source JS files confirmed clean in local tree; build script re-packages them correctly |
+| "Config file not found" in Status tab | `status.js` read `/var/run/snmpd.conf` (UCI-generated, not read by snmpd); should be `/etc/snmp/snmpd.conf` | Fixed `status.js` line 18: changed path to `/etc/snmp/snmpd.conf` |
+| rpcd denying file reads | ACL JSON had BOM + was missing `"read"` permissions for `/etc/snmp/snmpd.conf` and `/appdata/FWCONFIG/SNMPV3.json` | Rewrote ACL with explicit read/write/exec entries for all paths; BOM removed |
+
+**Files changed in local source tree:**
+- `packages/luci-app-snmp/root/usr/share/rpcd/acl.d/luci-app-snmp.json` — BOM removed, full read/write/exec permissions
+- `packages/luci-app-snmp/htdocs/luci-static/resources/view/snmp/status.js` — line 18: `/var/run/snmpd.conf` → `/etc/snmp/snmpd.conf`
+- `packages/luci-app-snmp/Makefile` — `DEPENDS` changed from `luci-base python3 net-snmp net-snmp-utils` to `luci-base python3` (net-snmp is pre-installed; not in opkg feeds)
+
+**`.ipk` format discovery and rebuild:**
+- SESSION-015 .ipk was built on router; this session rebuilt on Windows
+- Discovered OpenWrt `.ipk` is NOT a Debian `ar` archive — it is a `tar.gz` containing `./debian-binary`, `./data.tar.gz`, `./control.tar.gz`
+- Verified by examining `xxd` of working `.ipk` (starts `1f 8b` = gzip) and `tar -tzf` on router
+- Rebuilt using Python `tarfile` — outer `tar.gz` wraps the 3 members; `read_lf()` strips BOM and CRLF from all files before packaging
+- Result: `luci-app-snmp_1.0.0-1_all.ipk` 12.0 KB — correct format, installs cleanly
+
+**Full opkg install flow verified:**
+- `opkg remove luci-app-snmp` → all 10 files removed; init hook stripped from `/etc/init.d/snmpd`; `/appdata/FWCONFIG/SNMPV3.json` preserved (prerm does not touch user data)
+- `opkg install --force-depends /tmp/luci-app-snmp_1.0.0-1_all.ipk` → clean install; postinst ran (hook re-patched, rpcd reloaded, snmpd restarted)
+- Post-install Playwright test: **26/26 checks PASS** (sidebar visible, all 4 tabs load, no JS errors, status shows snmpd running, config file displayed)
+
+**Commits this session:**
+- `a4187cb` — TESTPLAN.md (S4 all 8 PASS, S5 management results, S7 hardening results)
+- `acfb9a0` — luci-app-snmp ACL + status.js fixes (source tree)
+- `e7ec99a` — rebuilt .ipk + Makefile DEPENDS fix
+
+**Pending owner actions (unchanged from prior sessions):**
+- F15-5: Rebuild net-snmp with `--with-openssl` for AES/SHA → enables authPriv in SNMPv3
+- F15-10: Set AdGuard Home admin password at `http://10.80.80.57:3000/control/install.html`
+- F12-1: Configure remote syslog server in SyslogConfig.json
+- TC-M-005 remains FAIL until net-snmp rebuilt (authNoPriv now works; authPriv does not)
+
+**Next:** P16 Final Regression (all phases complete except P14 Code Documentation)
