@@ -4,22 +4,27 @@
 		"read": {
 			"uci": [ "snmpd" ],
 			"file": {
-				"/usr/local/bin/SNMPAPPLY": [ "exec" ],
-				"/usr/local/bin/SNMPV3INJECT": [ "exec" ],
-				"/etc/init.d/snmpd": [ "exec" ],
-				"/usr/bin/snmpwalk": [ "exec" ],
-				"/usr/sbin/snmpd": [ "exec" ],
-				"/bin/pidof": [ "exec" ],
-				"/usr/bin/python3": [ "exec" ],
-				"/bin/sh": [ "exec" ]
+				"/etc/snmp/snmpd.conf":           [ "read" ],
+				"/appdata/FWCONFIG/SNMPV3.json":  [ "read" ],
+				"/usr/local/bin/SNMPAPPLY":       [ "exec" ],
+				"/usr/local/bin/SNMPSYS":         [ "exec" ],
+				"/usr/local/bin/SNMPV3INJECT":    [ "exec" ],
+				"/etc/init.d/snmpd":              [ "exec" ],
+				"/usr/bin/snmpwalk":              [ "exec" ],
+				"/usr/sbin/snmpd":               [ "exec" ],
+				"/bin/pidof":                    [ "exec" ],
+				"/usr/bin/python3":              [ "exec" ],
+				"/bin/sh":                       [ "exec" ]
 			}
 		},
 		"write": {
 			"uci": [ "snmpd" ],
 			"file": {
-				"/usr/local/bin/SNMPAPPLY": [ "exec" ],
-				"/etc/init.d/snmpd": [ "exec" ],
-				"/bin/sh": [ "exec" ]
+				"/appdata/FWCONFIG/SNMPV3.json":  [ "write" ],
+				"/usr/local/bin/SNMPAPPLY":       [ "exec" ],
+				"/usr/local/bin/SNMPSYS":         [ "exec" ],
+				"/etc/init.d/snmpd":              [ "exec" ],
+				"/bin/sh":                       [ "exec" ]
 			}
 		}
 	}

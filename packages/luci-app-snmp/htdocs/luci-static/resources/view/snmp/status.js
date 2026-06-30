@@ -14,8 +14,8 @@ return view.extend({
 				fs.exec('sh', ['-c', 'pidof snmpd && echo RUNNING || echo STOPPED']),
 				{ stdout: 'STOPPED' }
 			),
-			/* Read current running config */
-			L.resolveDefault(fs.read('/var/run/snmpd.conf'), ''),
+			/* Read active config — snmpd reads /etc/snmp/snmpd.conf directly */
+			L.resolveDefault(fs.read('/etc/snmp/snmpd.conf'), ''),
 			/* Read v3 user config */
 			L.resolveDefault(
 				fs.read(CFG).then(function(d) {
