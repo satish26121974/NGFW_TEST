@@ -1,0 +1,23 @@
+#!/bin/bash
+# SENDEMAIL - send alert email via curl SMTP
+# Usage: SENDEMAIL <to> <subject> <body>
+TO="$1"; SUBJECT="$2"; BODY="$3"
+CFG=/appdata/FWCONFIG/EmailAlert.json
+[ -f "$CFG" ] || { echo "No EmailAlert.json config"; exit 1; }
+STATUS=$(jq -r '.Status' "$CFG")
+[ "$STATUS" = "ENABLE" ] || exit 0
+SMTP=$(jq -r '.SmtpServer' "$CFG")
+PORT=$(jq -r '.SmtpPort' "$CFG")
+USER=$(jq -r '.SmtpUser' "$CFG")
+PASS=$(jq -r '.SmtpPass' "$CFG")
+FROM=$(jq -r '.From' "$CFG")
+TMPF=$(mktemp /tmp/ngfw_mail.XXXXXX)
+printf "From: UniGr8ways NGFW <%s>\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain\r\n\r\n%s\r\n" \
+    "$FROM" "$TO" "$SUBJECT" "$(date -R)" "$BODY" > "$TMPF"
+curl --silent --url "smtps://${SMTP}:${PORT}" --ssl-reqd \
+     --mail-from "$FROM" --mail-rcpt "$TO" \
+     --user "${USER}:${PASS}" --upload-file "$TMPF" --insecure 2>/dev/null
+RC=$?
+rm -f "$TMPF"
+[ $RC -eq 0 ] && logger -t SENDEMAIL "Sent to $TO: $SUBJECT"
+exit $RC

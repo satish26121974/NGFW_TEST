@@ -1,0 +1,146 @@
+#!/bin/bash
+START=$1
+CONFIGIPS=/appdata/IPSCONFIG.json
+IPSStatus=$(jq -r '.ConfigStatus[].Status' $CONFIGIPS)
+IPSPolicylev=$(jq -r '.ConfigStatus[].PolLevel' $CONFIGIPS)
+IPSTypeScan=$(jq -r '.ConfigStatus[].TypeScan' $CONFIGIPS)
+IPSBuffer=$(jq -r '.ConfigStatus[].Buffer' $CONFIGIPS) 
+IPSScanlog=$(jq -r '.ConfigStatus[].ScanLog' $CONFIGIPS) 
+
+start () {
+if [[ $IPSStatus = "ENABLE" ]] ; then
+	if [[ -z $(grep -w "Valid" /appdata/check_lic) ]] ; then
+	echo "License validation failed..."
+	ps -w | grep snort | egrep -v grep | egrep -v "ns.lua" | awk '{print $1}' | while read SNORTPID; do kill -9 $SNORTPID; done
+	eval `iptables --list-rules | grep ipsmarkQueue | sed 's/^-A/iptables -D /g;s/$/;/g'`
+	exit 0
+	fi
+> /tmp/snortqno
+touch /etc/snort/rules/ipsrules.rules
+chmod 777 /etc/snort/rules/ipsrules.rules
+mkdir -p /var/log/snort/
+if [[ -d /opt ]] ; then
+mkdir -p /opt/snortlogs
+chmod -R 777 /opt/snortlogs
+fi
+#ps -w | grep snort | egrep -v grep | egrep -v "ns.lua" | awk '{print $1}' | while read SNORTPID; do kill -9 $SNORTPID; done
+WANCOUNT=`cat /appdata/LB.conf | grep lb: | wc -l`
+WANIFS=`echo $(cat /appdata/LB.conf | grep lb: | cut -d ':' -f2 | while read WANINT; do echo -n $WANINT":";  ethtool -K $WANINT gro off; ethtool -K $WANINT lro off; done) | sed 's/.$//'`
+
+[ $((WANCOUNT%2)) -eq 0 ] && echo "even" || echo "odd"
+#REmove older Queues
+eval `iptables --list-rules | grep ipsmarkQueue | sed 's/^-A/iptables -D /g;s/$/;/g'`
+#Add Newer Queues
+for i in $(seq $WANCOUNT)
+do
+iptables -I INPUT -m comment --comment ipsmarkQueue -j NFQUEUE --queue-num=$i --queue-bypass
+iptables -I FORWARD -m comment --comment ipsmarkQueue -j NFQUEUE --queue-num=$i --queue-bypass
+echo "$i" >> /tmp/snortqno
+done
+
+##Run DLP
+eval `iptables --list-rules | grep dlpQueue | sed 's/^-A/iptables -D /g;s/$/;/g'`
+
+[[ $(uci get cips.@cips[0].dlp) -eq 1 ]] && {
+[[ $(jq -r .'status' /appdata/FWCONFIG/new_sig.json) -eq "1" ]] && {
+iptables -I FORWARD 1 -m comment --comment dlpQueue -j NFQUEUE --queue-num=0 --queue-bypass
+> /tmp/snortqno
+echo ""
+#touch /appdata/FWCONFIG/new_sig.json
+/usr/sbin/CIPS -d -c /etc/cips.conf -p 8191 -q 0 asd 2>&1 1> /dev/null 2> /dev/null && echo "Cips Started......"
+eval `iptables --list-rules | grep ipsmarkQueue | sed 's/^-A/iptables -D /g;s/$/;/g'`
+
+cat /tmp/snortqno | while read SNORTQ
+do
+iptables -t mangle -I PREROUTING 2 -m comment --comment ipsmarkQueue -m connmark --ctmark 0x2423 -j NFQUEUE --queue-num "$SNORTQ"
+iptables -I FORWARD 2 -m comment --comment ipsmarkQueue -m connmark --mark 0x2423 -j NFQUEUE --queue-num "$SNORTQ"
+echo "$SNORTQ" >> /tmp/snortqno
+done
+for i in $(seq $WANCOUNT)
+do
+iptables -I INPUT -m comment --comment ipsmarkQueue -j NFQUEUE --queue-num=$i --queue-bypass
+echo "$i" >> /tmp/snortqno
+done
+}
+}
+
+
+
+##Finish DLP
+
+
+> /tmp/ipsqueueinstance
+QUEUECOUNT=`iptables -L --line-numbers | grep ipsmarkQueue | wc -l`
+for i in $(seq $QUEUECOUNT)
+do
+echo -n "-i "$i" " >> /tmp/ipsqueueinstance
+done
+
+#Define Queues numbers
+SNORTQUEUE=`cat /tmp/ipsqueueinstance`
+#Split Cores
+COREQUEUE=`iptables -L --line-numbers | grep ipsmarkQueue | wc -l`
+
+#Run IPS
+if [[ $IPSStatus = "ENABLE" ]] ; then
+	if [[ $IPSPolicylev = "connectivity" ]] && [[ $IPSScanlog = "ENABLE" ]] ; then
+	snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -l /opt/snortlogs -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks connectivity -k none > /tmp/EXportIPSstatus
+	elif [[ $IPSPolicylev = "connectivity" ]] && [[ $IPSScanlog = "DISABLE" ]] ; then
+	snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks connectivity -k none > /tmp/EXportIPSstatus
+	fi
+	if [[ $IPSPolicylev = "max" ]] && [[ $IPSScanlog = "ENABLE" ]] ; then
+	snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -l /opt/snortlogs -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks max_detect -k none > /tmp/EXportIPSstatus
+	elif [[ $IPSPolicylev = "max" ]] && [[ $IPSScanlog = "DISABLE" ]] ; then
+	snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks max_detect -k none > /tmp/EXportIPSstatus
+	fi
+	if [[ $IPSPolicylev = "balanced" ]] && [[ $IPSScanlog = "ENABLE" ]] ; then
+	snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -l /opt/snortlogs -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks balanced -k none > /tmp/EXportIPSstatus
+	elif [[ $IPSPolicylev = "balanced" ]] && [[ $IPSScanlog = "DISABLE" ]] ; then
+	snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks balanced -k none > /tmp/EXportIPSstatus
+	fi
+	if [[ $IPSPolicylev = "security" ]] && [[ $IPSScanlog = "ENABLE" ]] ; then
+	snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -l /opt/snortlogs -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks security -k none > /tmp/EXportIPSstatus
+	elif [[ $IPSPolicylev = "security" ]] && [[ $IPSScanlog = "DISABLE" ]] ; then
+	snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks security -k none > /tmp/EXportIPSstatus
+	fi
+
+
+QUEUECOUNT=`iptables -L --line-numbers | grep ipsmarkQueue | wc -l`
+echo ""
+fi
+#snort -Q $SNORTQUEUE --daq-dir /usr/lib/daq/ --daq nfq -c /etc/snort/snort.lua -l /opt/snortlogs -D -i $WANIFS --daq-var buffer_size_mb=1024 -z $COREQUEUE --tweaks balanced -k none > /tmp/EXportIPSstatus
+else
+[[ $(jq -r .'status' /appdata/FWCONFIG/new_sig.json) -eq "1" ]] && {
+iptables -I FORWARD 1 -m comment --comment dlpQueue -j NFQUEUE --queue-num=0 --queue-bypass
+echo ""
+touch /appdata/FWCONFIG/new_sig.json
+/usr/sbin/CIPS -d -c /etc/cips.conf -p 8191 -q 0 asd 2>&1 1> /dev/null 2> /dev/null && echo "Cips Started......"
+}
+echo "IPSIDS is Disabled Pls enable.."
+ps -w | grep snort | egrep -v grep | egrep -v "ns.lua" | awk '{print $1}' | while read SNORTPID; do kill -9 "$SNORTPID"; done
+#eval `iptables --list-rules | grep NFQUEUE | sed 's/^-A/iptables -D /g;s/$/;/g'`
+eval `iptables --list-rules | grep ipsmarkQueue | sed 's/^-A/iptables -D /g;s/$/;/g'`
+
+fi
+}
+
+stop () {
+ps -w | grep snort | egrep -v grep | egrep -v "ns.lua" | awk '{print $1}' | while read SNORTPID; do kill -9 $SNORTPID; done
+eval `iptables --list-rules | grep ipsmarkQueue | sed 's/^-A/iptables -D /g;s/$/;/g'`
+killall CIPS
+}
+
+if [[ $START = start ]] ; then
+	start
+elif [[ $START = stop ]] ; then
+	stop
+elif [[ $START = restart ]] ; then
+	stop
+	sleep 1
+	start
+else
+stop
+sleep 3
+start
+fi 
+exit

@@ -1,0 +1,105 @@
+#!/bin/bash
+# TOTP - RFC 6238 Time-based OTP using openssl + python3
+# Usage: TOTP generate <base32_secret>
+#        TOTP verify  <base32_secret> <otp_code>
+#        TOTP enroll  <username>          -- generates new secret + otpauth URI
+#        TOTP check_lockout <username>    -- exits 1 if locked out
+
+SECRET_DIR=/etc/totp_secrets
+LOCKOUT_DIR=/tmp/totp_lockout
+MAX_FAIL=5
+LOCKOUT_SEC=300
+
+check_lockout() {
+    local user="$1"
+    local f="$LOCKOUT_DIR/$user"
+    [ -f "$f" ] || return 0
+    local ts=$(cat "$f" 2>/dev/null)
+    local now=$(date +%s)
+    if [ $(( now - ts )) -lt $LOCKOUT_SEC ]; then
+        echo "LOCKED"
+        return 1
+    fi
+    rm -f "$f"
+    return 0
+}
+
+record_fail() {
+    local user="$1"
+    mkdir -p "$LOCKOUT_DIR"
+    local fail_file="$LOCKOUT_DIR/${user}_fails"
+    local count=$(cat "$fail_file" 2>/dev/null || echo 0)
+    count=$(( count + 1 ))
+    echo "$count" > "$fail_file"
+    if [ "$count" -ge "$MAX_FAIL" ]; then
+        date +%s > "$LOCKOUT_DIR/$user"
+        rm -f "$fail_file"
+        logger -t TOTP "User $user locked out after $MAX_FAIL failed OTP attempts"
+    fi
+}
+
+clear_fail() {
+    rm -f "$LOCKOUT_DIR/${1}_fails" "$LOCKOUT_DIR/$1"
+}
+
+totp_generate() {
+    local secret="$1"
+    local window="${2:-0}"
+    python3 -c "
+import base64, hashlib, hmac, struct, time, sys
+secret = sys.argv[1].upper()
+window = int(sys.argv[2])
+pad = (8 - len(secret.rstrip('=')) % 8) % 8
+key = base64.b32decode(secret + '=' * pad, casefold=True)
+T = int(time.time() // 30) + window
+msg = struct.pack('>Q', T)
+h = hmac.new(key, msg, hashlib.sha1).digest()
+offset = h[-1] & 0x0f
+code = struct.unpack('>I', h[offset:offset+4])[0] & 0x7fffffff
+print('%06d' % (code % 1000000))
+" "$secret" "$window"
+}
+
+case "$1" in
+  generate)
+    totp_generate "$2" 0
+    ;;
+  verify)
+    SECRET_FILE="$SECRET_DIR/$3"
+    [ -f "$SECRET_FILE" ] && SECRET=$(cat "$SECRET_FILE") || SECRET="$2"
+    # shift: when called as "TOTP verify <secret> <code>"
+    # or "TOTP verify --user <user> <code>"
+    CODE="${3}"
+    SECRET="${2}"
+    [ "$2" = "--user" ] && { SECRET=$(cat "$SECRET_DIR/$3" 2>/dev/null); CODE="$4"; }
+    # Check current window and previous window (clock drift tolerance)
+    for w in 0 -1 1; do
+        expected=$(totp_generate "$SECRET" "$w")
+        if [ "$CODE" = "$expected" ]; then
+            echo "PASS"
+            exit 0
+        fi
+    done
+    echo "FAIL"
+    exit 1
+    ;;
+  enroll)
+    USER="$2"
+    mkdir -p "$SECRET_DIR" && chmod 700 "$SECRET_DIR"
+    # Generate 20 random bytes as base32 secret
+    SECRET=$(dd if=/dev/urandom bs=20 count=1 2>/dev/null | base64 | tr -d '=\n' | \
+             python3 -c "import sys,base64; d=base64.b64decode(sys.stdin.read()+'=='); print(base64.b32encode(d).decode())")
+    echo "$SECRET" > "$SECRET_DIR/$USER"
+    chmod 600 "$SECRET_DIR/$USER"
+    echo "Secret: $SECRET"
+    echo "OTP URI: otpauth://totp/UniGr8ways:${USER}?secret=${SECRET}&issuer=UniGr8ways&digits=6&period=30"
+    echo "Scan the URI above with Google Authenticator or Authy"
+    ;;
+  check_lockout)
+    check_lockout "$2"
+    ;;
+  *)
+    echo "Usage: TOTP generate|verify|enroll|check_lockout ..."
+    exit 2
+    ;;
+esac

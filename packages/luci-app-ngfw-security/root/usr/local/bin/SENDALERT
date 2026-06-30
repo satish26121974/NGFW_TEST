@@ -1,0 +1,26 @@
+#!/bin/bash
+# SENDALERT - unified alert dispatcher (SMS + Email + WhatsApp)
+# Usage: SENDALERT <EVENT> <DETAIL>
+EVENT="$1"; DETAIL="$2"
+TIMESTAMP=$(date '+%d/%m %H:%M')
+MSG="[UniGr8ways] ${EVENT}: ${DETAIL} (${TIMESTAMP})"
+
+# SMS
+if [ "$(jq -r '.Status' /appdata/FWCONFIG/SMSAlert.json 2>/dev/null)" = "ENABLE" ]; then
+    jq -r '.Numbers[]' /appdata/FWCONFIG/SMSAlert.json 2>/dev/null | \
+    while read N; do /usr/local/bin/SENDSMS "$N" "$MSG" & done
+fi
+
+# Email
+if [ "$(jq -r '.Status' /appdata/FWCONFIG/EmailAlert.json 2>/dev/null)" = "ENABLE" ]; then
+    jq -r '.Recipients[]' /appdata/FWCONFIG/EmailAlert.json 2>/dev/null | \
+    while read R; do /usr/local/bin/SENDEMAIL "$R" "[NGFW] ${EVENT}" "$MSG" & done
+fi
+
+# WhatsApp
+if [ "$(jq -r '.Status' /appdata/FWCONFIG/WhatsAppAlert.json 2>/dev/null)" = "ENABLE" ]; then
+    jq -r '.Recipients[]' /appdata/FWCONFIG/WhatsAppAlert.json 2>/dev/null | \
+    while read P; do /usr/local/bin/SENDWHATSAPP "$P" "$MSG" & done
+fi
+
+logger -t SENDALERT "$MSG"

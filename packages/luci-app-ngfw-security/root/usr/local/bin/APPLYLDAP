@@ -1,0 +1,50 @@
+#!/bin/bash
+# APPLYLDAP — reads LDAPConfig.json and configures FreeRADIUS LDAP module
+# Called by CHECKiDAM when LDAP config changes
+
+CFG=/appdata/FWCONFIG/LDAPConfig.json
+[ -f "$CFG" ] || exit 0
+STATUS=$(jq -r '.Status' "$CFG")
+[ "$STATUS" = "ENABLE" ] || exit 0
+
+SERVER=$(jq -r '.Server' "$CFG")
+PORT=$(jq -r '.Port' "$CFG")
+BINDDN=$(jq -r '.BindDN' "$CFG")
+BINDPASS=$(jq -r '.BindPass' "$CFG")
+BASEDN=$(jq -r '.BaseDN' "$CFG")
+USERFILTER=$(jq -r '.UserFilter // "(sAMAccountName=%u)"' "$CFG")
+TLS=$(jq -r '.TLS // "false"' "$CFG")
+
+# Write FreeRADIUS LDAP module config
+cat > /etc/freeradius3/mods-enabled/ldap << EOF
+ldap {
+    server = '${SERVER}'
+    port = ${PORT}
+    identity = '${BINDDN}'
+    password = '${BINDPASS}'
+    base_dn = '${BASEDN}'
+    user {
+        base_dn = "\${..base_dn}"
+        filter = "${USERFILTER}"
+    }
+    group {
+        base_dn = "\${..base_dn}"
+        filter = "(objectClass=group)"
+        membership_attribute = 'memberOf'
+    }
+    tls {
+        start_tls = $([ "$TLS" = "true" ] && echo yes || echo no)
+    }
+    pool {
+        start = 3
+        min = 2
+        max = 10
+        idle_timeout = 60
+    }
+}
+EOF
+
+# Reload FreeRADIUS
+/etc/init.d/freeradius3 reload 2>/dev/null || /etc/init.d/radiusd reload 2>/dev/null
+logger -t APPLYLDAP "LDAP config applied: server=$SERVER base=$BASEDN"
+echo "LDAP config applied"

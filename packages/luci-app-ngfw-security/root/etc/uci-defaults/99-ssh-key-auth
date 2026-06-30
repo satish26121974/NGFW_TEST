@@ -1,0 +1,46 @@
+#!/bin/sh
+# 99-ssh-key-auth
+# uci-defaults script — runs ONCE on first boot, then self-removes.
+# Purpose: enforce key-based SSH auth on every router built from this BSP.
+#
+# Place in BSP at: files/etc/uci-defaults/99-ssh-key-auth
+# It will land at:  /etc/uci-defaults/99-ssh-key-auth in the firmware image.
+
+# ── 1. Install management public key ──────────────────────────────────────
+DROPBEAR_DIR=/etc/dropbear
+AUTH_KEYS="${DROPBEAR_DIR}/authorized_keys"
+
+mkdir -p "${DROPBEAR_DIR}"
+chmod 700 "${DROPBEAR_DIR}"
+
+# Management key — ED25519, generated 2026-06-28
+# Private key held by network administrator (not stored in BSP)
+MGMT_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH4UiIVS4UkwMuj2ICZkjYx/s0kLztyt/heog1FyqoXJ ngfw-management"
+
+# Write key only if not already present (idempotent)
+grep -qxF "${MGMT_KEY}" "${AUTH_KEYS}" 2>/dev/null || \
+    echo "${MGMT_KEY}" >> "${AUTH_KEYS}"
+
+chmod 600 "${AUTH_KEYS}"
+
+# ── 2. Harden Dropbear via UCI ────────────────────────────────────────────
+# Disable password authentication — key only
+uci set dropbear.@dropbear[0].PasswordAuth='off'
+uci set dropbear.@dropbear[0].RootPasswordAuth='off'
+
+# Keep root login allowed (via key)
+uci set dropbear.@dropbear[0].RootLogin='1'
+
+# SSH port — change here if your BSP uses a non-standard port
+# uci set dropbear.@dropbear[0].Port='19822'
+
+uci commit dropbear
+
+# ── 3. Restart Dropbear to apply ──────────────────────────────────────────
+/etc/init.d/dropbear restart
+
+# ── 4. Log the event ──────────────────────────────────────────────────────
+logger -t ssh-key-auth "Key-based SSH auth configured on first boot. Password auth disabled."
+
+# Exit 0 = success → OpenWRT removes this script automatically after first boot
+exit 0

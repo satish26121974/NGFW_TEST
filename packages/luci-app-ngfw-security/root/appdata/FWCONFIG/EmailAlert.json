@@ -1,0 +1,10 @@
+{
+  "Status": "DISABLE",
+  "SmtpServer": "smtp.gmail.com",
+  "SmtpPort": "465",
+  "SmtpUser": "alerts@yourdomain.com",
+  "SmtpPass": "your_app_password",
+  "From": "alerts@yourdomain.com",
+  "Recipients": ["admin@yourdomain.com"],
+  "Triggers": ["WAN_DOWN","IPS_ALERT","HA_FAILOVER","LICENSE_EXPIRY","HIGH_CPU"]
+}
