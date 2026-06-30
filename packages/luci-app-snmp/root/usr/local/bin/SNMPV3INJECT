@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+# SNMPV3INJECT — append SNMPv3 createUser/rouser/rwuser lines to snmpd config.
+# Called from /etc/init.d/snmpd start_service just before procd_close_instance.
+# Usage: SNMPV3INJECT <configfile>
+
+import json
+import os
+import sys
+
+CONFIGFILE = sys.argv[1] if len(sys.argv) > 1 else '/var/run/snmpd.conf'
+V3CFG = '/appdata/FWCONFIG/SNMPV3.json'
+
+if not os.path.exists(V3CFG):
+    sys.exit(0)
+
+try:
+    with open(V3CFG) as f:
+        cfg = json.load(f)
+except Exception as e:
+    sys.stderr.write('SNMPV3INJECT: failed to parse {}: {}\n'.format(V3CFG, e))
+    sys.exit(0)
+
+users = cfg.get('users', [])
+if not users:
+    sys.exit(0)
+
+lines = []
+for u in users:
+    name = u.get('name', '').strip()
+    if not name:
+        continue
+    auth_proto = u.get('auth_proto', 'SHA')
+    auth_pass  = u.get('auth_pass', '')
+    priv_proto = u.get('priv_proto', 'AES')
+    priv_pass  = u.get('priv_pass', '')
+    sec_level  = u.get('sec_level', 'authPriv')
+    access     = u.get('access', 'ro')
+
+    if sec_level == 'authPriv' and auth_pass and priv_pass:
+        lines.append('createUser {} {} {} {} {}'.format(
+            name, auth_proto, auth_pass, priv_proto, priv_pass))
+        vacm_level = 'priv'
+    elif sec_level == 'authNoPriv' and auth_pass:
+        lines.append('createUser {} {} {}'.format(name, auth_proto, auth_pass))
+        vacm_level = 'auth'
+    else:
+        lines.append('createUser {}'.format(name))
+        vacm_level = 'noauth'
+
+    if access == 'rw':
+        lines.append('rwuser {} {}'.format(name, vacm_level))
+    else:
+        lines.append('rouser {} {}'.format(name, vacm_level))
+
+try:
+    with open(CONFIGFILE, 'a') as f:
+        f.write('\n# SNMPv3 Users (managed by luci-app-snmp)\n')
+        for line in lines:
+            f.write(line + '\n')
+except Exception as e:
+    sys.stderr.write('SNMPV3INJECT: failed to write {}: {}\n'.format(CONFIGFILE, e))
+    sys.exit(1)

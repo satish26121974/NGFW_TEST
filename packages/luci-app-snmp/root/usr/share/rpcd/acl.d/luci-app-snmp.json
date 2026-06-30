@@ -1,0 +1,26 @@
+{
+	"luci-app-snmp": {
+		"description": "Grant access to SNMP configuration with SNMPv3 user management",
+		"read": {
+			"uci": [ "snmpd" ],
+			"file": {
+				"/usr/local/bin/SNMPAPPLY": [ "exec" ],
+				"/usr/local/bin/SNMPV3INJECT": [ "exec" ],
+				"/etc/init.d/snmpd": [ "exec" ],
+				"/usr/bin/snmpwalk": [ "exec" ],
+				"/usr/sbin/snmpd": [ "exec" ],
+				"/bin/pidof": [ "exec" ],
+				"/usr/bin/python3": [ "exec" ],
+				"/bin/sh": [ "exec" ]
+			}
+		},
+		"write": {
+			"uci": [ "snmpd" ],
+			"file": {
+				"/usr/local/bin/SNMPAPPLY": [ "exec" ],
+				"/etc/init.d/snmpd": [ "exec" ],
+				"/bin/sh": [ "exec" ]
+			}
+		}
+	}
+}

@@ -1,0 +1,16 @@
+#!/bin/sh
+# prerm: runs before luci-app-snmp is removed from the router
+
+# Remove the SNMPV3_INJECT_HOOK lines we added to /etc/init.d/snmpd
+INIT="/etc/init.d/snmpd"
+MARKER="SNMPV3_INJECT_HOOK"
+
+if [ -f "$INIT" ] && grep -q "$MARKER" "$INIT" 2>/dev/null; then
+    grep -v "$MARKER\|SNMPV3INJECT" "$INIT" > "${INIT}.tmp" && \
+        mv "${INIT}.tmp" "$INIT" && chmod 755 "$INIT"
+fi
+
+# Restart snmpd without the v3 inject hook
+/etc/init.d/snmpd restart 2>/dev/null
+
+exit 0

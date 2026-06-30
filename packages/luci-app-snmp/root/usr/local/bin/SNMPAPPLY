@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+# SNMPAPPLY — apply SNMPv3 users from /appdata/FWCONFIG/SNMPV3.json
+# into /etc/snmp/snmpd.conf, clear stale USM keys, then restart snmpd.
+# Exit 0 on RUNNING, 1 on STOPPED.
+
+import json, os, subprocess, sys, time
+
+CONFFILE = '/etc/snmp/snmpd.conf'
+PERSIST  = '/usr/lib/snmp/snmpd.conf'
+V3CFG    = '/appdata/FWCONFIG/SNMPV3.json'
+
+def read_conf():
+    with open(CONFFILE) as f:
+        return f.read()
+
+def write_conf(content):
+    with open(CONFFILE, 'w') as f:
+        f.write(content)
+
+def apply_v3_users():
+    try:
+        with open(V3CFG) as f:
+            cfg = json.load(f)
+    except Exception:
+        cfg = {'users': []}
+
+    content = read_conf()
+
+    # Strip old v3 lines and our comment header
+    clean_lines = []
+    for line in content.split('\n'):
+        s = line.strip()
+        if (s.startswith('createUser') or
+                s.startswith('rouser') or
+                s.startswith('rwuser') or
+                '(managed by luci-app-snmp)' in s):
+            continue
+        clean_lines.append(line)
+
+    content = '\n'.join(clean_lines).rstrip('\n')
+
+    users = cfg.get('users', [])
+    if users:
+        v3_lines = ['', '# SNMPv3 Users (managed by luci-app-snmp)']
+        for u in users:
+            name = u.get('name', '').strip()
+            if not name:
+                continue
+            auth_proto = u.get('auth_proto', 'SHA')
+            auth_pass  = u.get('auth_pass', '')
+            priv_proto = u.get('priv_proto', 'DES')
+            priv_pass  = u.get('priv_pass', '')
+            sec_level  = u.get('sec_level', 'authPriv')
+            access     = u.get('access', 'ro')
+
+            if sec_level == 'authPriv' and auth_pass and priv_pass:
+                v3_lines.append('createUser {} {} {} {} {}'.format(
+                    name, auth_proto, auth_pass, priv_proto, priv_pass))
+                vacm_level = 'priv'
+            elif sec_level == 'authNoPriv' and auth_pass:
+                v3_lines.append('createUser {} {} {}'.format(
+                    name, auth_proto, auth_pass))
+                vacm_level = 'auth'
+            else:
+                v3_lines.append('createUser {}'.format(name))
+                vacm_level = 'noauth'
+
+            directive = 'rwuser' if access == 'rw' else 'rouser'
+            v3_lines.append('{} {} {}'.format(directive, name, vacm_level))
+
+        content = content + '\n' + '\n'.join(v3_lines) + '\n'
+    else:
+        content += '\n'
+
+    write_conf(content)
+
+def clear_user_keys():
+    if not os.path.exists(PERSIST):
+        return
+    with open(PERSIST) as f:
+        content = f.read()
+    # Remove stale usmUser entries so snmpd re-derives keys from createUser
+    new_lines = [l for l in content.split('\n')
+                 if not l.strip().startswith('usmUser')]
+    with open(PERSIST, 'w') as f:
+        f.write('\n'.join(new_lines))
+
+def restart_snmpd():
+    subprocess.run(['/etc/init.d/snmpd', 'restart'], capture_output=True)
+    time.sleep(2)
+    r = subprocess.run(['pidof', 'snmpd'], capture_output=True)
+    return r.returncode == 0
+
+apply_v3_users()
+clear_user_keys()
+running = restart_snmpd()
+print('RUNNING' if running else 'STOPPED')
+sys.exit(0 if running else 1)

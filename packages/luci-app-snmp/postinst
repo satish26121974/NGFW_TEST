@@ -1,0 +1,30 @@
+#!/bin/sh
+# postinst: runs after luci-app-snmp is installed on the router
+
+# Copy default v3 config if none exists yet
+[ -f /appdata/FWCONFIG/SNMPV3.json ] || \
+    cp /appdata/FWCONFIG/SNMPV3.json.default /appdata/FWCONFIG/SNMPV3.json 2>/dev/null
+
+# Patch /etc/init.d/snmpd to call SNMPV3INJECT just before procd_close_instance.
+# This injects createUser/rouser/rwuser lines into /var/run/snmpd.conf before
+# snmpd reads it on every start or restart.
+INIT="/etc/init.d/snmpd"
+MARKER="SNMPV3_INJECT_HOOK"
+
+if [ -f "$INIT" ] && ! grep -q "$MARKER" "$INIT" 2>/dev/null; then
+    awk -v marker="$MARKER" '
+    /^\tprocd_close_instance$/ {
+        print "\t# " marker
+        print "\t[ -x /usr/local/bin/SNMPV3INJECT ] && /usr/local/bin/SNMPV3INJECT \"$CONFIGFILE\""
+    }
+    { print }
+    ' "$INIT" > "${INIT}.tmp" && mv "${INIT}.tmp" "$INIT" && chmod 755 "$INIT"
+fi
+
+# Reload rpcd so the new ACL file takes effect
+/etc/init.d/rpcd reload 2>/dev/null
+
+# Restart snmpd so the inject hook runs and v3 users (if any) are applied
+/etc/init.d/snmpd restart 2>/dev/null
+
+exit 0

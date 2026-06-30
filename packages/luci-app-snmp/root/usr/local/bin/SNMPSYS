@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+# SNMPSYS — update system settings in /etc/snmp/snmpd.conf then restart snmpd.
+# Usage: SNMPSYS key1=value1 key2=value2 ...
+# Supported keys: sysName sysLocation sysContact agentaddress
+
+import os, re, subprocess, sys, time
+
+CONFFILE = '/etc/snmp/snmpd.conf'
+
+DIRECTIVES = {
+    'sysName':      'sysName',
+    'sysLocation':  'sysLocation',
+    'sysContact':   'sysContact',
+    'agentaddress': 'agentaddress',
+}
+
+def parse_args(argv):
+    kv = {}
+    for arg in argv[1:]:
+        if '=' in arg:
+            k, v = arg.split('=', 1)
+            kv[k.strip()] = v.strip()
+    return kv
+
+def update_conf(updates):
+    with open(CONFFILE) as f:
+        lines = f.readlines()
+
+    updated_keys = set()
+    new_lines = []
+    for line in lines:
+        matched = False
+        for key, directive in DIRECTIVES.items():
+            if key in updates:
+                pattern = r'^' + re.escape(directive) + r'\s+'
+                if re.match(pattern, line.strip()):
+                    new_lines.append('{} {}\n'.format(directive, updates[key]))
+                    updated_keys.add(key)
+                    matched = True
+                    break
+        if not matched:
+            new_lines.append(line)
+
+    # Add any directives that weren't found (new entries)
+    for key, directive in DIRECTIVES.items():
+        if key in updates and key not in updated_keys:
+            new_lines.append('{} {}\n'.format(directive, updates[key]))
+
+    with open(CONFFILE, 'w') as f:
+        f.writelines(new_lines)
+
+def restart_snmpd():
+    subprocess.run(['/etc/init.d/snmpd', 'restart'], capture_output=True)
+    time.sleep(2)
+    r = subprocess.run(['pidof', 'snmpd'], capture_output=True)
+    return r.returncode == 0
+
+updates = parse_args(sys.argv)
+if not updates:
+    print('USAGE: SNMPSYS key=value ...')
+    sys.exit(1)
+
+update_conf(updates)
+running = restart_snmpd()
+print('RUNNING' if running else 'STOPPED')
+sys.exit(0 if running else 1)
