@@ -1,6 +1,6 @@
 # luci-app-ngfw-security — Application Guide
-> Version 1.0.0 | OpenWRT 23.05.x x86_64 | UniGr8ways NGFW
-> All five apps live under **Services** in the LuCI web interface.
+> Version 1.1.0 | OpenWRT 23.05.x x86_64 | UniGr8ways NGFW
+> All six apps live under **Services** in the LuCI web interface.
 
 ---
 
@@ -65,14 +65,199 @@ make image PROFILE=x86_64 PACKAGES="\
 
 ### 6. Or install directly on running router
 ```bash
-opkg install luci-app-ngfw-security_1.0.0-1_all.ipk
+opkg install luci-app-ngfw-security_1.1.0-1_all.ipk
 ```
 
 ---
 
 ---
 
-# App 1 — AD / LDAP Authentication
+# App 1 — SSL / TLS Inspection
+
+**Menu path:** Services → SSL Inspection → Settings / Live Status
+**Config:** UCI `squid.squid.gssldec` + `/etc/squid/ssl-common-whitelist.txt`
+**Backend:** Squid 6.7 (ssl_bump) + `/usr/local/bin/SSLBUMPSTART`
+**Certificate DB:** `/tmp/squid/ssldb/` (tmpfs — rebuilt on every boot by SSLBUMPSTART)
+**CA cert:** `/etc/squid/ssl_cert/myCA.pem` (valid until 2035)
+
+---
+
+## How It Works
+
+```
+Client HTTPS request (port 443)
+          │
+          ▼
+iptables PREROUTING REDIRECT  443 → 3129
+          │
+          ▼
+Squid 6.7 — ssl_bump PEEK  (reads SNI from TLS ClientHello)
+          │
+          ▼
+  ┌───────────────────────────────────────┐
+  │  Is domain in ssl-common-whitelist?   │
+  └──────────────┬────────────────────────┘
+            YES  │                   NO  │
+                 ▼                       ▼
+          SPLICE (pass-through)    BUMP (decrypt)
+          No content inspection    Squid presents
+                                   forged cert signed
+                                   by myCA
+                                        │
+                                        ▼
+                                   Content forwarded to:
+                                   e2guardian (URL/category filter)
+                                        │
+                                        ▼
+                                   c-icap → ClamAV (AV scan)
+                                        │
+                                        ▼
+                                   Response returned to client
+
+HTTP traffic (port 80) also redirected:
+  iptables 80 → 3128 → Squid transparent proxy → e2guardian → c-icap
+```
+
+### Certificate Chain
+
+```
+myCA (root CA baked into firmware)
+  └── Dynamic leaf cert generated per domain on demand
+        e.g. "*.google.com" — signed by myCA — presented to client
+```
+
+Clients must trust `myCA.pem` as a root CA. Without it, browsers show
+"Your connection is not private" for every HTTPS site.
+
+---
+
+## What You Can Achieve
+
+| Goal | How |
+|------|-----|
+| Inspect HTTPS content (URLs, payloads) | Enable SSL Inspection — traffic is decrypted inline |
+| Block HTTPS sites by URL (not just SNI) | Combined with URL Filter (squid + e2guardian) |
+| Scan HTTPS downloads for malware | ClamAV via c-icap runs on decrypted HTTPS responses |
+| Bypass inspection for trusted domains | Add domain to bypass whitelist (e.g. `.microsoft.com`) |
+| Bypass for banking / sensitive sites | Add to whitelist — traffic passes encrypted, uninspected |
+| Download CA cert for client deployment | Settings page → Download myCA.pem |
+| See which HTTPS sites are being accessed | Live Status → Recent HTTPS Connections log |
+| Reinitialise cert DB after corruption | Settings → Re-initialize ssldb button |
+| Check if iptables redirects are active | Live Status → iptables REDIRECT Rules section |
+
+---
+
+## Dependencies
+
+| Dependency | Required | Notes |
+|-----------|----------|-------|
+| `squid` (v6.7) | Yes | Pre-installed — provides ssl_bump engine |
+| `squid-mod-cachemgr` | Yes | Pre-installed |
+| `openssl-util` | Yes | Pre-installed — cert generation + inspection |
+| `c-icap` | Yes | Pre-installed — routes traffic to ClamAV |
+| `clamav` + `freshclam` | Yes | Pre-installed — AV scanning of decrypted traffic |
+| `e2guardian` | Yes | Pre-installed — URL/content filter on decrypted stream |
+| `iptables` | Yes | Pre-installed — REDIRECT rules |
+| `/tmp/squid/ssldb/` | Yes | Created at boot by SSLBUMPSTART — lives in tmpfs |
+| CA cert (`myCA.pem`) | Yes | Already present at `/etc/squid/ssl_cert/myCA.pem` |
+| Client trust of CA | Yes (clients) | Must install myCA.pem on every client device |
+
+**No additional packages needed** — all dependencies are already in the firmware.
+
+---
+
+## Settings Page Features
+
+| Control | What It Does |
+|---------|-------------|
+| Enable toggle | Sets `uci squid.squid.gssldec=1` and runs `SSLBUMPSTART` |
+| Start button | Runs `/usr/local/bin/SSLBUMPSTART` (inits ssldb + iptables + starts Squid) |
+| Reload Config button | Runs `squid -k reconfigure` — applies changes without dropping connections |
+| Stop button | Runs `squid -k shutdown` — stops inspection, traffic no longer intercepted |
+| Re-initialize ssldb | Wipes `/tmp/squid/ssldb/`, rebuilds it, restarts Squid — fixes cert DB corruption |
+| Download CA cert | Serves `myCA.pem` for distribution to client devices |
+| Bypass Whitelist | Load + edit `ssl-common-whitelist.txt` (139 entries pre-configured) |
+
+---
+
+## Live Status Page Features
+
+| Card / Section | Shows |
+|---------------|-------|
+| Squid Status card | Running / Stopped + PID |
+| SSL Cert DB card | Ready (ssldb exists) / Missing |
+| Active HTTPS card | Current ESTABLISHED connections on port 3129 |
+| Dynamic Certs card | Count of certs issued from ssldb index |
+| Bypass Rules card | Number of domains in whitelist |
+| iptables REDIRECT | 443→3129 and 80→3128 Active / Missing status |
+| CA Certificate | Subject, expiry date, certs issued count |
+| HTTPS access log | Last 10 CONNECT/TUNNEL entries from Squid access.log |
+
+---
+
+## Expected Behaviour
+
+| Action | Expected Result |
+|--------|----------------|
+| Enable + Save | Squid starts, iptables REDIRECT added, ssldb initialised |
+| Browser opens HTTPS site | Squid presents dynamic cert signed by myCA |
+| Client trusts myCA | Page loads normally, traffic decrypted and scanned |
+| Client does NOT trust myCA | Browser shows certificate warning — user must install CA |
+| Domain in bypass whitelist | Traffic SPLICED — passes through uninspected |
+| Disable + Save | Squid stops, iptables REDIRECT removed, HTTPS bypasses Squid |
+| Squid crashes | ssldb in /tmp lost on reboot — SSLBUMPSTART rebuilds on next start |
+| Reboot | SSLBUMPSTART runs at boot, rebuilds ssldb, restores iptables |
+| Download CA cert | Browser downloads `myCA.pem` for manual client installation |
+| Re-init ssldb | Old dynamic certs wiped, fresh DB created, Squid restarted |
+
+## What Is NOT Supported
+
+- **Certificate pinning bypass** — apps that use cert pinning (e.g. some banking apps, Google Chrome on mobile) will fail even with CA installed. Add those domains to the whitelist.
+- **QUIC / HTTP3** — QUIC runs over UDP port 443, not TCP. Only TCP HTTPS is intercepted; QUIC traffic passes uninspected. Recommend blocking UDP 443 (`iptables -I FORWARD -p udp --dport 443 -j DROP`).
+- **Mutual TLS (mTLS)** — client certificates cannot be proxied through Squid ssl_bump.
+- **HPKP (HTTP Public Key Pinning)** — browsers that enforce HPKP will reject the dynamic cert.
+- **Inbound HTTPS inspection** — only outbound client traffic is intercepted; inbound traffic to the router itself is not inspected.
+- **CA cert auto-deployment** — clients must manually install myCA.pem. SCEP / MDM auto-deployment is not built in.
+- **SSL inspection of SDWAN namespace traffic** — traffic within the SDWAN netns uses a separate path; only LAN-to-WAN traffic is intercepted.
+- **TLS 1.3 0-RTT** — Squid may downgrade 0-RTT connections.
+
+---
+
+## Test Cases
+
+| TC | Test | Steps | Expected |
+|----|------|-------|----------|
+| SSL-01 | Settings page loads | Navigate to Services → SSL Inspection → Settings | Page renders with current UCI state |
+| SSL-02 | Enable SSL Inspection | Toggle ON, click Save | Squid starts, notification "SSL Inspection enabled" |
+| SSL-03 | Disable SSL Inspection | Toggle OFF, click Save | Squid stops, notification "disabled" |
+| SSL-04 | Start button | Click Start | SSLBUMPSTART runs, notification "Squid started" |
+| SSL-05 | Stop button | Click Stop | Squid stopped, notification confirmed |
+| SSL-06 | Reload Config | Click Reload Config | `squid -k reconfigure` runs, no connection drops |
+| SSL-07 | Re-init ssldb | Click Re-initialize ssldb | ssldb wiped + rebuilt, Squid restarted |
+| SSL-08 | Download CA cert | Click Download myCA.pem | Browser downloads the PEM file |
+| SSL-09 | Load whitelist | Click Load Current Whitelist | Textarea populates with 139 entries |
+| SSL-10 | Add to whitelist | Add `.newdomain.com`, Save | Domain added to ssl-common-whitelist.txt |
+| SSL-11 | Remove from whitelist | Delete entry, Save | Domain removed, Squid reloaded |
+| SSL-12 | Status page loads | Navigate to Live Status | 5 summary cards shown |
+| SSL-13 | Squid running card | With Squid running | Card shows "Running" in green |
+| SSL-14 | Squid stopped card | Stop Squid, reload page | Card shows "Stopped" in red |
+| SSL-15 | ssldb card | ssldb present at /tmp/squid/ssldb | Card shows "Ready" |
+| SSL-16 | ssldb missing card | Delete /tmp/squid/ssldb, reload page | Card shows "Missing" in red |
+| SSL-17 | iptables redirect active | With SSLBUMPSTART run | Both 443→3129 and 80→3128 show "Active" |
+| SSL-18 | iptables redirect missing | Flush nat table, reload page | Rules show "Missing" with warning |
+| SSL-19 | HTTPS traffic intercepted | Enable, LAN client browses HTTPS | Squid cert presented (check browser padlock) |
+| SSL-20 | CA trusted client | Install myCA.pem on client, browse | No browser warning, traffic decrypted |
+| SSL-21 | CA untrusted client | Browse without installing CA | Browser shows certificate warning |
+| SSL-22 | Whitelisted domain bypassed | Add domain to whitelist, browse to it | Server's real cert presented (not Squid cert) |
+| SSL-23 | AV scan via ClamAV | Download EICAR test file over HTTPS | ClamAV blocks the download |
+| SSL-24 | Access log entries | Browse HTTPS sites, check Live Status log | CONNECT entries appear for each domain |
+| SSL-25 | Boot persistence | Reboot router | ssldb rebuilt and iptables restored by SSLBUMPSTART |
+
+---
+
+---
+
+# App 2 — AD / LDAP Authentication
 
 **Menu path:** Services → AD / LDAP Auth
 **Config file:** `/appdata/FWCONFIG/LDAPConfig.json`
@@ -176,7 +361,7 @@ The Lua CBI page reads the JSON config, renders it as an HTML form, and on Save:
 
 ---
 
-# App 2 — TACACS+ Authentication
+# App 3 — TACACS+ Authentication
 
 **Menu path:** Services → TACACS+ Auth → Settings / Test & Status
 **Config file:** `/appdata/FWCONFIG/TACACS.json`
@@ -285,7 +470,7 @@ The Test & Status tab runs this flow live with credentials you enter, so you can
 
 ---
 
-# App 3 — 2FA / TOTP
+# App 4 — 2FA / TOTP
 
 **Menu path:** Services → 2FA / TOTP → Settings / Manage Users
 **Config file:** `/appdata/FWCONFIG/2FA.json`
@@ -407,7 +592,7 @@ User scans into Google Authenticator / Authy / any RFC 6238 app
 
 ---
 
-# App 4 — FQDN Rules
+# App 5 — FQDN Rules
 
 **Menu path:** Services → FQDN Rules → Rules / Live Status
 **Config file:** `/appdata/FWCONFIG/FQDNRules.json`
@@ -517,7 +702,7 @@ A single domain (e.g. google.com) can resolve to 50+ IPs across CDN nodes. ipset
 
 ---
 
-# App 5 — Alert Notifications
+# App 6 — Alert Notifications
 
 **Menu path:** Services → Alert Notifications → Overview / SMS / Email / WhatsApp
 **Config files:** `/appdata/FWCONFIG/SMSAlert.json`, `EmailAlert.json`, `WhatsAppAlert.json`
@@ -680,6 +865,10 @@ All events logged via syslog: logger -t SENDALERT
 # Inter-App Dependencies and Interactions
 
 ```
+SSL Inspection (Squid ssl_bump)
+  └──► e2guardian (URL/content filter on decrypted traffic)
+         └──► c-icap ──► ClamAV (AV scan on decrypted traffic)
+
 ┌─────────────────────────────────────────────────────┐
 │                SENDALERT dispatcher                  │
 │  Called by: Linkcheck.sh, HAFUN4, UNIGR8WAYS_LIC   │
@@ -699,6 +888,11 @@ All events logged via syslog: logger -t SENDALERT
 
 | If this app is disabled/broken | These apps are affected |
 |-------------------------------|------------------------|
+| Squid not running | SSL Inspection inactive — HTTPS bypasses uninspected |
+| ssldb missing (/tmp wiped) | Squid cannot issue dynamic certs — SSLBUMPSTART rebuilds on next start |
+| myCA not trusted on clients | Browser warnings on every HTTPS site — SSL Inspection still works server-side |
+| iptables REDIRECT missing | HTTPS traffic bypasses Squid — run SSLBUMPSTART to restore |
+| e2guardian / c-icap down | SSL Inspection still decrypts but URL/AV filtering disabled |
 | FreeRADIUS3 not running | LDAP auth fails (TACACS+ unaffected) |
 | No 4G modem | SMS channel fails (Email/WhatsApp unaffected) |
 | dnsmasq not running | FQDN Rules cannot resolve domains |
@@ -710,12 +904,29 @@ All events logged via syslog: logger -t SENDALERT
 
 # Summary Quick Reference
 
-| App | Menu | Config File | Key Script | Enable Flag |
-|-----|------|-------------|------------|-------------|
-| AD/LDAP | Services → AD/LDAP Auth | `LDAPConfig.json` | `APPLYLDAP` | Status=ENABLE |
-| TACACS+ | Services → TACACS+ Auth | `TACACS.json` | `TACAUTH` | Status=ENABLE |
-| 2FA TOTP | Services → 2FA/TOTP | `2FA.json` | `TOTP` | Status=ENABLE |
-| FQDN Rules | Services → FQDN Rules | `FQDNRules.json` | `FQDNRULES` | Status=ENABLE |
-| Alerts | Services → Alert Notifications | `SMSAlert.json` `EmailAlert.json` `WhatsAppAlert.json` | `SENDALERT` | Per-channel Status |
+| # | App | Menu | Config / Control | Key Script | Enable Flag |
+|---|-----|------|-----------------|------------|-------------|
+| 1 | SSL Inspection | Services → SSL Inspection | UCI `squid.squid.gssldec` + `ssl-common-whitelist.txt` | `SSLBUMPSTART` | UCI gssldec=1 |
+| 2 | AD/LDAP | Services → AD/LDAP Auth | `LDAPConfig.json` | `APPLYLDAP` | Status=ENABLE |
+| 3 | TACACS+ | Services → TACACS+ Auth | `TACACS.json` | `TACAUTH` | Status=ENABLE |
+| 4 | 2FA TOTP | Services → 2FA/TOTP | `2FA.json` | `TOTP` | Status=ENABLE |
+| 5 | FQDN Rules | Services → FQDN Rules | `FQDNRules.json` | `FQDNRULES` | Status=ENABLE |
+| 6 | Alerts | Services → Alert Notifications | `SMSAlert.json` `EmailAlert.json` `WhatsAppAlert.json` | `SENDALERT` | Per-channel Status |
 
-All config files live at `/appdata/FWCONFIG/` and are pushed/overwritten by the orchestrator on each sync — local LuCI edits will be overridden on the next orchestrator push unless the orchestrator is also updated.
+> **Orchestrator note:** All `/appdata/FWCONFIG/*.json` files are pushed and overwritten by the orchestrator on each sync. Local LuCI edits will be overridden on the next push unless the orchestrator config is also updated.
+>
+> **SSL exception:** SSL Inspection uses UCI (`uci set squid.squid.gssldec`) which is NOT managed by the orchestrator — LuCI changes persist permanently.
+
+---
+
+## Total Test Case Count
+
+| App | Test Cases |
+|-----|-----------|
+| SSL Inspection | 25 |
+| AD / LDAP | 10 |
+| TACACS+ | 12 |
+| 2FA TOTP | 14 |
+| FQDN Rules | 15 |
+| Alert Notifications | 21 |
+| **Total** | **97** |
