@@ -1,71 +1,113 @@
-# luci-app-ngfw-security — Application Guide
-> Version 1.1.0 | OpenWRT 23.05.x x86_64 | UniGr8ways NGFW
+# UniGr8ways NGFW — LuCI Application Guide
+> Package suite v1.1.0 | OpenWRT 23.05.x x86_64 | UniGr8ways NGFW
 > All six apps live under **Services** in the LuCI web interface.
+> Each app is now a separate, independently installable package.
+
+---
+
+## Package Reference
+
+| Package | App | .ipk File | Size | Depends |
+|---------|-----|-----------|------|---------|
+| `luci-app-ssl-inspection` | SSL Inspection | `luci-app-ssl-inspection_1.1.0-1_all.ipk` | 7.5 KB | luci-base, python3, squid |
+| `luci-app-ad-ldap` | AD / LDAP Auth | `luci-app-ad-ldap_1.1.0-1_all.ipk` | 6.6 KB | luci-base, python3, jq, freeradius3 |
+| `luci-app-tacacs` | TACACS+ Auth | `luci-app-tacacs_1.1.0-1_all.ipk` | 5.7 KB | luci-base, python3 |
+| `luci-app-2fa` | 2FA / TOTP | `luci-app-2fa_1.1.0-1_all.ipk` | 7.0 KB | luci-base, python3 |
+| `luci-app-fqdn` | FQDN Rules | `luci-app-fqdn_1.1.0-1_all.ipk` | 5.9 KB | luci-base, jq |
+| `luci-app-alerts` | Alert Notifications | `luci-app-alerts_1.1.0-1_all.ipk` | 8.3 KB | luci-base, jq |
+| `luci-app-ngfw-security` | **Meta (all above)** | `luci-app-ngfw-security_1.1.0-1_all.ipk` | — | all 6 packages |
+
+All `.ipk` files are at `packages/<package-name>/` in the GitHub repo.
 
 ---
 
 ## BSP Package Sources
 
-### 1. Add the local feed to `feeds.conf`
+### Option A — Install individual packages (recommended)
+
+```bash
+# On running router — install only what you need
+opkg install luci-app-ssl-inspection_1.1.0-1_all.ipk
+opkg install luci-app-ad-ldap_1.1.0-1_all.ipk
+opkg install luci-app-tacacs_1.1.0-1_all.ipk
+opkg install luci-app-2fa_1.1.0-1_all.ipk
+opkg install luci-app-fqdn_1.1.0-1_all.ipk
+opkg install luci-app-alerts_1.1.0-1_all.ipk
+```
+
+### Option B — Install everything via meta-package
+
+```bash
+opkg install luci-app-ngfw-security_1.1.0-1_all.ipk
+```
+
+### Option C — Build system (feeds.conf)
+
+#### 1. Add the local feed
 ```
 src-link ngfw /path/to/NGFW_TEST/packages
 ```
 
-### 2. Register + install
+#### 2. Register and select packages
 ```bash
 ./scripts/feeds update ngfw
-./scripts/feeds install luci-app-ngfw-security
+./scripts/feeds install luci-app-ssl-inspection luci-app-ad-ldap \
+  luci-app-tacacs luci-app-2fa luci-app-fqdn luci-app-alerts
 ```
 
-### 3. Enable in `.config`
+#### 3. Enable in `.config`
 ```
-CONFIG_PACKAGE_luci-app-ngfw-security=y
+# Individual packages
+CONFIG_PACKAGE_luci-app-ssl-inspection=y
+CONFIG_PACKAGE_luci-app-ad-ldap=y
+CONFIG_PACKAGE_luci-app-tacacs=y
+CONFIG_PACKAGE_luci-app-2fa=y
+CONFIG_PACKAGE_luci-app-fqdn=y
+CONFIG_PACKAGE_luci-app-alerts=y
+
+# Or install everything via meta-package
+# CONFIG_PACKAGE_luci-app-ngfw-security=y
 ```
 
-### 4. Required dependency packages (add to image)
+#### 4. Required runtime dependency packages
 ```
-# .config additions
 CONFIG_PACKAGE_luci-base=y
 CONFIG_PACKAGE_python3=y
 CONFIG_PACKAGE_jq=y
-CONFIG_PACKAGE_freeradius3=y
+CONFIG_PACKAGE_freeradius3=y          # required by luci-app-ad-ldap
 CONFIG_PACKAGE_freeradius3-default=y
 
-# Replace wpad with full version for 802.1x support
+# Replace wpad — needed for 802.1x (wpad binary missing in base build)
 CONFIG_PACKAGE_wpad-openssl=y
-# CONFIG_PACKAGE_wpad=n   <-- remove default wpad
+# CONFIG_PACKAGE_wpad=n
 
-# TOTP (proper implementation)
+# Proper TOTP implementation (luci-app-2fa currently uses openssl workaround)
 CONFIG_PACKAGE_oathtool=y
 
-# LuCI SSO / OIDC (future)
+# LuCI SSO / OIDC (future — needed for F48)
 CONFIG_PACKAGE_lua-cjson=y
 CONFIG_PACKAGE_luasec=y
 
-# SMS via 4G modem
+# SMS via 4G modem (luci-app-alerts)
 CONFIG_PACKAGE_comgt=y
 
-# Email (more reliable than curl SMTP)
+# Reliable SMTP client (luci-app-alerts)
 CONFIG_PACKAGE_msmtp=y
 
 # SSH brute-force protection
 CONFIG_PACKAGE_fail2ban=y
 ```
 
-### 5. Image Builder equivalent
+### Option D — Image Builder (all packages)
 ```bash
 make image PROFILE=x86_64 PACKAGES="\
-  luci-app-ngfw-security \
+  luci-app-ssl-inspection luci-app-ad-ldap luci-app-tacacs \
+  luci-app-2fa luci-app-fqdn luci-app-alerts \
   luci-base python3 jq \
   freeradius3 freeradius3-default \
   wpad-openssl -wpad \
   oathtool lua-cjson luasec \
   comgt msmtp fail2ban"
-```
-
-### 6. Or install directly on running router
-```bash
-opkg install luci-app-ngfw-security_1.1.0-1_all.ipk
 ```
 
 ---
@@ -74,6 +116,7 @@ opkg install luci-app-ngfw-security_1.1.0-1_all.ipk
 
 # App 1 — SSL / TLS Inspection
 
+**Package:** `luci-app-ssl-inspection` | `luci-app-ssl-inspection_1.1.0-1_all.ipk`
 **Menu path:** Services → SSL Inspection → Settings / Live Status
 **Config:** UCI `squid.squid.gssldec` + `/etc/squid/ssl-common-whitelist.txt`
 **Backend:** Squid 6.7 (ssl_bump) + `/usr/local/bin/SSLBUMPSTART`
@@ -259,6 +302,7 @@ Clients must trust `myCA.pem` as a root CA. Without it, browsers show
 
 # App 2 — AD / LDAP Authentication
 
+**Package:** `luci-app-ad-ldap` | `luci-app-ad-ldap_1.1.0-1_all.ipk`
 **Menu path:** Services → AD / LDAP Auth
 **Config file:** `/appdata/FWCONFIG/LDAPConfig.json`
 **Backend:** FreeRADIUS3 + `/usr/local/bin/APPLYLDAP`
@@ -363,6 +407,7 @@ The Lua CBI page reads the JSON config, renders it as an HTML form, and on Save:
 
 # App 3 — TACACS+ Authentication
 
+**Package:** `luci-app-tacacs` | `luci-app-tacacs_1.1.0-1_all.ipk`
 **Menu path:** Services → TACACS+ Auth → Settings / Test & Status
 **Config file:** `/appdata/FWCONFIG/TACACS.json`
 **Backend:** `/usr/local/bin/TACAUTH` (Python, RFC 1492)
@@ -472,6 +517,7 @@ The Test & Status tab runs this flow live with credentials you enter, so you can
 
 # App 4 — 2FA / TOTP
 
+**Package:** `luci-app-2fa` | `luci-app-2fa_1.1.0-1_all.ipk`
 **Menu path:** Services → 2FA / TOTP → Settings / Manage Users
 **Config file:** `/appdata/FWCONFIG/2FA.json`
 **Backend:** `/usr/local/bin/TOTP` (shell + openssl HMAC-SHA1)
@@ -594,6 +640,7 @@ User scans into Google Authenticator / Authy / any RFC 6238 app
 
 # App 5 — FQDN Rules
 
+**Package:** `luci-app-fqdn` | `luci-app-fqdn_1.1.0-1_all.ipk`
 **Menu path:** Services → FQDN Rules → Rules / Live Status
 **Config file:** `/appdata/FWCONFIG/FQDNRules.json`
 **Backend:** `/usr/local/bin/FQDNRULES`
@@ -704,6 +751,7 @@ A single domain (e.g. google.com) can resolve to 50+ IPs across CDN nodes. ipset
 
 # App 6 — Alert Notifications
 
+**Package:** `luci-app-alerts` | `luci-app-alerts_1.1.0-1_all.ipk`
 **Menu path:** Services → Alert Notifications → Overview / SMS / Email / WhatsApp
 **Config files:** `/appdata/FWCONFIG/SMSAlert.json`, `EmailAlert.json`, `WhatsAppAlert.json`
 **Backend:** `/usr/local/bin/SENDALERT` (dispatcher), `SENDSMS`, `SENDEMAIL`, `SENDWHATSAPP`
@@ -904,18 +952,32 @@ SSL Inspection (Squid ssl_bump)
 
 # Summary Quick Reference
 
-| # | App | Menu | Config / Control | Key Script | Enable Flag |
-|---|-----|------|-----------------|------------|-------------|
-| 1 | SSL Inspection | Services → SSL Inspection | UCI `squid.squid.gssldec` + `ssl-common-whitelist.txt` | `SSLBUMPSTART` | UCI gssldec=1 |
-| 2 | AD/LDAP | Services → AD/LDAP Auth | `LDAPConfig.json` | `APPLYLDAP` | Status=ENABLE |
-| 3 | TACACS+ | Services → TACACS+ Auth | `TACACS.json` | `TACAUTH` | Status=ENABLE |
-| 4 | 2FA TOTP | Services → 2FA/TOTP | `2FA.json` | `TOTP` | Status=ENABLE |
-| 5 | FQDN Rules | Services → FQDN Rules | `FQDNRules.json` | `FQDNRULES` | Status=ENABLE |
-| 6 | Alerts | Services → Alert Notifications | `SMSAlert.json` `EmailAlert.json` `WhatsAppAlert.json` | `SENDALERT` | Per-channel Status |
+| # | Package | App | Menu | Config / Control | Key Script | Enable Flag |
+|---|---------|-----|------|-----------------|------------|-------------|
+| 1 | `luci-app-ssl-inspection` | SSL Inspection | Services → SSL Inspection | UCI `squid.squid.gssldec` + `ssl-common-whitelist.txt` | `SSLBUMPSTART` | UCI gssldec=1 |
+| 2 | `luci-app-ad-ldap` | AD/LDAP | Services → AD/LDAP Auth | `LDAPConfig.json` | `APPLYLDAP` | Status=ENABLE |
+| 3 | `luci-app-tacacs` | TACACS+ | Services → TACACS+ Auth | `TACACS.json` | `TACAUTH` | Status=ENABLE |
+| 4 | `luci-app-2fa` | 2FA TOTP | Services → 2FA/TOTP | `2FA.json` | `TOTP` | Status=ENABLE |
+| 5 | `luci-app-fqdn` | FQDN Rules | Services → FQDN Rules | `FQDNRules.json` | `FQDNRULES` | Status=ENABLE |
+| 6 | `luci-app-alerts` | Alerts | Services → Alert Notifications | `SMSAlert.json` `EmailAlert.json` `WhatsAppAlert.json` | `SENDALERT` | Per-channel Status |
 
 > **Orchestrator note:** All `/appdata/FWCONFIG/*.json` files are pushed and overwritten by the orchestrator on each sync. Local LuCI edits will be overridden on the next push unless the orchestrator config is also updated.
 >
 > **SSL exception:** SSL Inspection uses UCI (`uci set squid.squid.gssldec`) which is NOT managed by the orchestrator — LuCI changes persist permanently.
+
+---
+
+## Total Test Case Count
+
+| Package | App | Test Cases |
+|---------|-----|-----------|
+| `luci-app-ssl-inspection` | SSL Inspection | 25 |
+| `luci-app-ad-ldap` | AD / LDAP | 10 |
+| `luci-app-tacacs` | TACACS+ | 12 |
+| `luci-app-2fa` | 2FA TOTP | 14 |
+| `luci-app-fqdn` | FQDN Rules | 15 |
+| `luci-app-alerts` | Alert Notifications | 21 |
+| **Total** | | **97** |
 
 ---
 
