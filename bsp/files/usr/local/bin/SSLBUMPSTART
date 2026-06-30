@@ -1,0 +1,33 @@
+#!/bin/bash
+# SSLBUMPSTART - initialise Squid SSL inspection on boot
+# Called from SDOSSTART after network is up
+
+# Init ssldb (lives in /tmp which is tmpfs - recreate on every boot)
+mkdir -p /tmp/squid
+if [ ! -f /tmp/squid/ssldb/size ]; then
+    /usr/lib/squid/security_file_certgen -c -s /tmp/squid/ssldb -M 4MB 2>/dev/null
+    chown -R nobody:nogroup /tmp/squid/ssldb 2>/dev/null
+fi
+mkdir -p /var/log/squid && chmod -R 777 /var/log/squid
+mkdir -p /var/cache/squid && chmod -R 777 /var/cache/squid
+
+# Update Snort HOME_NET
+/usr/local/bin/UPDATEHOMENET
+
+# Start Squid
+/etc/init.d/squid restart 2>/dev/null
+sleep 3
+
+# iptables: redirect HTTP to Squid (port 80 -> 3128) if not already set
+iptables -t nat -L PREROUTING -n | grep "dpt:80.*redir.*3128" > /dev/null 2>&1 || \
+    iptables -t nat -A PREROUTING -m comment --comment "SQUID_HTTP" \
+    -p tcp --dport 80 -j REDIRECT --to-port 3128
+
+# iptables: redirect HTTPS to Squid ssl_bump (443 -> 3129) for traffic
+# not already handled by per-group https-proxy rules (groups 1-10)
+# This rule goes AFTER group rules so groups take priority
+iptables -t nat -L PREROUTING -n | grep "dpt:443.*redir.*3129" > /dev/null 2>&1 || \
+    iptables -t nat -A PREROUTING -m comment --comment "SQUID_HTTPS_BUMP" \
+    -p tcp --dport 443 -j REDIRECT --to-port 3129
+
+echo "SSLBUMPSTART: Squid SSL inspection ready"

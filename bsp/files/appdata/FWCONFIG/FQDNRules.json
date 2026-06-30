@@ -1,0 +1,17 @@
+{
+  "Status": "DISABLE",
+  "Rules": [
+    {
+      "FQDN": "example-bad-domain.com",
+      "Action": "block",
+      "Chain": "FORWARD",
+      "Description": "Block traffic to this domain by FQDN"
+    },
+    {
+      "FQDN": "trusted-partner.com",
+      "Action": "allow",
+      "Chain": "FORWARD",
+      "Description": "Always allow this domain even if category-blocked"
+    }
+  ]
+}

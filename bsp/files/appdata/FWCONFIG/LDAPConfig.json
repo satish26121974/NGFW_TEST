@@ -1,0 +1,12 @@
+{
+  "Status": "DISABLE",
+  "Type": "AD",
+  "Server": "192.168.1.10",
+  "Port": 389,
+  "BindDN": "CN=svcaccount,CN=Users,DC=corp,DC=local",
+  "BindPass": "your_service_account_password",
+  "BaseDN": "DC=corp,DC=local",
+  "UserFilter": "(sAMAccountName=%u)",
+  "GroupFilter": "(memberOf=CN=VPN_Users,OU=Groups,DC=corp,DC=local)",
+  "TLS": false
+}

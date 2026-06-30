@@ -1,0 +1,36 @@
+# LDAP / Active Directory configuration for FreeRADIUS
+# Managed by CHECKiDAM — do not edit manually
+# Source: /appdata/FWCONFIG/LDAPConfig.json
+
+ldap {
+    server = 'LDAP_SERVER_PLACEHOLDER'
+    port = LDAP_PORT_PLACEHOLDER
+
+    # For Active Directory: use CN, for OpenLDAP: use uid
+    identity = 'LDAP_BIND_DN_PLACEHOLDER'
+    password = 'LDAP_BIND_PASS_PLACEHOLDER'
+
+    base_dn = 'LDAP_BASE_DN_PLACEHOLDER'
+
+    user {
+        base_dn = "${..base_dn}"
+        filter = "(sAMAccountName=%{%{Stripped-User-Name}:-%{User-Name}})"
+    }
+
+    group {
+        base_dn = "${..base_dn}"
+        filter = "(objectClass=group)"
+        membership_attribute = 'memberOf'
+    }
+
+    tls {
+        start_tls = no
+    }
+
+    pool {
+        start = 5
+        min = 3
+        max = 10
+        idle_timeout = 60
+    }
+}

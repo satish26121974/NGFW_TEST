@@ -1,0 +1,52 @@
+#!/bin/bash
+mkdir -p /var/log/BELRAS
+mkdir -p /www/belras
+mkdir -p /var/log/lighttpd/
+chmod -R 777 /var/log/lighttpd
+mkdir -p /var/log/e2guardian
+chmod -R 777 /var/log/e2guardian
+ln -s /www /var/www
+touch /www/belras/acct-file
+#/etc/init.d/firewall stop
+#/etc/init.d/firewall disable
+/etc/init.d/lighttpd disable
+/etc/init.d//MONSET enable
+/etc/init.d//MONSET start
+/etc/init.d/LinkChk enable
+/etc/init.d/LinkChk start
+sleep 10
+uci show network | grep wan | grep proto | grep dhcp | cut -f2 -d. | while read dHif; do ifup ${dHif}; sleep 1; done
+/etc/init.d/network restart
+/etc/init.d/cron enable
+/etc/init.d/cron start
+sleep 3
+/etc/init.d/cron restart
+/etc/init.d/memcached disable
+/etc/init.d/memcached stop
+#sleep 40
+#/usr/local/bin/NEWSTART_NEW
+#if [[ -f /var/run/netns/main ]] ; then echo "1"; else ln -s /proc/1/ns/net /var/run/netns/main; fi
+ifconfig lo:195 203.0.113.195 netmask 255.255.255.255
+#/usr/local/bin/ADDLO
+/usr/local/bin/CHANGELB
+/usr/local/bin/START
+/usr/local/bin/ClearScreen
+/usr/local/bin/MACVLANSTART
+/usr/local/bin/ADDBRIDGESTART
+sleep 3
+/usr/local/bin/RESETAD
+#sleep 30
+#/usr/local/bin/RESETAD
+cp /sys/class/net/eth0/address /www/MAC_ADD_NEW/eth0
+ip netns exec SDWAN ifconfig 2> /dev/null && /sbin/ip netns exec SDWAN uhttpd -p 8888 -c /etc/config/uhttp -h /www -r UniGr8ways -x /cgi-bin -u /ubus &
+#/sbin/ip netns exec SDWAN uhttpd -p 8888 -h /www
+#/sbin/ip netns exec SDWAN /usr/sbin/uhttpd -c /etc/config/uhttp -f -h /www -r UniGr8ways -x /cgi-bin -u /ubus -t 60 -T 30 -k 20 -A 1 -n 3 -N 100 -p 8888 &
+#/sbin/ip netns exec SDWAN /usr/sbin/uhttpd -c /etc/config/uhttpdns -f -h /www -r UniGr8ways-SDWAN -x .php=/usr/bin/php-cgi -u /ubus  -t 60 -T 30 -k 20 -A 1 -n 3 -N 100 -p 8888 &
+#/usr/local/bin/SDTUNEMON &
+ntpdate pool.ntp.org &
+if [ -z $(cat /etc/TZ) ] ; then echo "IST-5:30" > /etc/TZ; fi
+echo "IST-5:30" > /etc/TZ
+/usr/local/bin/SSLBUMPSTART &
+/usr/local/bin/HAFUN4 &
+ip netns exec SDWAN ifconfig 2> /dev/null && ip netns exec SDWAN lighttpd -f /etc/lighttpd/lighttpd.conf
+[[ -z $(pidof lb) ]] && lb -d -c /etc/network_balance.conf --port 5333

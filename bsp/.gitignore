@@ -7,3 +7,6 @@ client/*.ppk
 *_ed25519
 *id_rsa*
 *id_ed25519*
+
+# IPS rules - 21MB, regenerated from IPSDATA/RULEFILE on boot - too large for git
+files/etc/snort/rules/combined.rules

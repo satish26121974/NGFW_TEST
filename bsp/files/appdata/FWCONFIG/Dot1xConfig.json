@@ -1,0 +1,10 @@
+{
+  "Status": "DISABLE",
+  "Mode": "wireless",
+  "Interface": "wlan0",
+  "SSID": "UniGr8ways-Enterprise",
+  "RadiusServer": "127.0.0.1",
+  "RadiusPort": 1812,
+  "RadiusSecret": "testing123",
+  "WiredNote": "Wired 802.1x requires MACSEC kernel module - not available in current build"
+}

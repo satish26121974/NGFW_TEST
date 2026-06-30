@@ -1,0 +1,6 @@
+{
+  "Status": "DISABLE",
+  "Modem": "/dev/ttyUSB4",
+  "Numbers": ["+919xxxxxxxxx"],
+  "Triggers": ["WAN_DOWN","IPS_ALERT","HA_FAILOVER","LICENSE_EXPIRY"]
+}

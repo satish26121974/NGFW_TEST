@@ -1,0 +1,21 @@
+#!/bin/bash
+# SENDSMS - send SMS via 4G USB modem AT commands
+# Usage: SENDSMS <number> <message>
+NUMBER="$1"; MESSAGE="$2"
+CFG=/appdata/FWCONFIG/SMSAlert.json
+[ -f "$CFG" ] || { echo "No SMSAlert.json"; exit 1; }
+STATUS=$(jq -r '.Status' "$CFG")
+[ "$STATUS" = "ENABLE" ] || exit 0
+MODEM=$(jq -r '.Modem // "/dev/ttyUSB4"' "$CFG")
+[ -c "$MODEM" ] || { logger -t SENDSMS "Modem $MODEM not found"; exit 1; }
+MSG_LEN=${#MESSAGE}
+(
+    stty -F "$MODEM" 115200 cs8 -cstopb -parenb raw -echo 2>/dev/null
+    printf 'AT\r\n';                     sleep 0.3
+    printf 'AT+CMGF=1\r\n';             sleep 0.3
+    printf 'AT+CMGS="%s"\r\n' "$NUMBER"; sleep 0.5
+    printf '%s' "$MESSAGE"
+    printf '\x1a'
+    sleep 3
+) >> "$MODEM" 2>/dev/null
+logger -t SENDSMS "SMS sent to $NUMBER (${MSG_LEN} chars)"

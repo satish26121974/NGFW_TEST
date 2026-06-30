@@ -1,0 +1,37 @@
+*/1 * * * * root sleep 60; /usr/local/bin/FirstConfig.sh > /dev/null
+*/1 * * * * root sleep 4; /usr/local/bin/UNIGR8WAYS_LIC > /dev/null
+*/1 * * * * root sleep 8; /usr/local/bin/UNIGR8WAYS_STAT > /dev/null
+*/1 * * * * root sleep 10; /usr/local/bin/UNIGR8WAYS_WAN > /dev/null
+*/3 * * * * root sleep 30; /usr/local/bin/UNIGR8WAYS_SIM > /dev/null
+*/1 * * * * root sleep 37; /usr/local/bin/UNIGR8WAYS_ARP > /dev/null
+*/1 * * * * root sleep 45; /usr/local/bin/UNIGR8WAYS_SDWAN > /dev/null
+*/1 * * * * root sleep 55; /usr/local/bin/UNIGR8WAYS_PING > /dev/null
+*/1 * * * * root sleep 57; /usr/local/bin/UNIGR8WAYS_BELLIVE > /dev/null
+*/2 * * * * root sleep 50; /usr/local/bin/UNIGR8WAYS_SDSES > /dev/null
+*/2 * * * * root sleep 55; /usr/local/bin/UNIGR8WAYS_IPSSTATUS.sh > /dev/null
+*/2 * * * * root sleep 55; /usr/local/bin/UNIGR8WAYS_AVCONFMON > /dev/null
+*/3 * * * * root sleep 35; /usr/local/bin/UNIGR8WAYS_UNIPOST.sh > /dev/null
+*/3 * * * * root sleep 45; /usr/local/bin/UNIGR8WAYS_IPSEC > /dev/null
+*/3 * * * * root sleep 55; /usr/local/bin/UNIGR8WAYS_BGPM > /dev/null
+
+
+#*/3 * * * root sleep 600; /usr/local/bin/UNIGR8WAYS_SPEEDTEST > /dev/null
+*/4 * * * root sleep 60; /usr/local/bin/UNIGR8WAYS_GEOTAG > /dev/null
+
+*/3 * * * * root sleep 180; /usr/local/bin/SDCHECK > /dev/null
+*/2 * * * * root sleep 90; /usr/local/bin/SDWAN_iftop > /dev/null
+*/4 * * * * root sleep 120; /usr/local/bin/LANDATA_iftop > /dev/null
+*/4 * * * * root sleep 70; /usr/local/bin/UNIGR8WAYS_CIPS > /dev/null
+*/5 * * * * root sleep 45; /usr/local/bin/UNIGR8WAYS_SWALK > /tmp/snmpcronlog.txt
+*/5 * * * * root sleep 25; /usr/local/bin/UNIGR8WAYS_SWALKWANDATA_iftophttp > /dev/null
+
+
+
+*/3 * * * * root sleep 40; /usr/local/bin/GETWIP > /dev/null
+#*/4 * * * * root sleeo 30; /usr/local/bin/CHECK_EXITS.sh > /dev/null
+
+*/1 * * * * root sleep 45; /usr/local/bin/CHECKConf > /dev/null
+#*/1 * * * * root sleep 55; /usr/local/bin/CHECKWiFi > /dev/null
+*/1 * * * * root sleep 59; /usr/local/bin/CHECKFWConf > /dev/null
+*/1 * * * * root sleep 39; /usr/local/bin/CHECKDIGConf > /dev/nul
+*/5 * * * * root /usr/local/bin/FQDNRULES > /dev/null
