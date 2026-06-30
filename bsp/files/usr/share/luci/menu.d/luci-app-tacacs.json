@@ -1,0 +1,25 @@
+{
+	"admin/services/tacacs": {
+		"title": "TACACS+ Auth",
+		"order": 66,
+		"action": {
+			"type": "firstchild"
+		}
+	},
+	"admin/services/tacacs/settings": {
+		"title": "Settings",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "tacacs/settings"
+		}
+	},
+	"admin/services/tacacs/test": {
+		"title": "Test & Status",
+		"order": 2,
+		"action": {
+			"type": "view",
+			"path": "tacacs/test"
+		}
+	}
+}
