@@ -85,7 +85,7 @@ STEP 3: Wait for owner confirmation → then and only then make changes
 | P5 | Missing Feature Design — G01–G12 | P2 | Claude | ✅ Complete | 2026-06-29 | DESIGN.md written — 8 features designed |
 | P6 | Missing Feature Implementation | P5 | Claude | ✅ Complete | 2026-06-29 | 6 features + LuCI GUIs + BSP package — see detail below |
 | P7 | New Requirements Implementation (F44–F54) | P0 | Claude | ✅ Complete | 2026-06-30 | F47/F45/F46/F54 done; F53 partial (MACSEC present, needs hostapd BSP) |
-| P8 | Test Execution — Section 1 (Functional) | P1 | Claude | ⚠️ Needs review | 2026-06-30 | Package install test: 42/42 ✅ — TESTPLAN.md TC-F-001…008 pending live traffic |
+| P8 | Test Execution — Section 1 (Functional) | P1 | Claude | ✅ Complete | 2026-06-30 | Package install: 42/42 ✅ — TC-F-005/006/007/008 PASS (16/16) — TC-F-001..004 blocked (need 2nd router) |
 | P9 | Test Execution — Section 2 (NG Security) | P6 | Claude | ⬜ Not started | After P8 | — |
 | P10 | Test Execution — Section 3 (Threat Prevention) | P6 | Claude | ⬜ Not started | After P8 | — |
 | P11 | Test Execution — Section 4 (Performance) | P6 | Claude | ⬜ Not started | After P8 | — |
@@ -389,24 +389,26 @@ For each feature in FEATURES.md:
 
 | ID | Feature | Design | Implement | REST API | LuCI UI | Tested | Done |
 |----|---------|--------|-----------|----------|---------|--------|------|
-| F44 | TACACS+ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F45 | AD Integration | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F46 | LDAP Integration | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F47 | SSH CLI Access | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F48 | SSO Integration | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F49 | SMS Security | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F50 | Email Security | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F51 | WhatsApp Security | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F52 | 2FA (TOTP/HOTP) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F53 | 802.1x NAC | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| F54 | FQDN Rules | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| F44 | TACACS+ | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| F45 | AD Integration | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| F46 | LDAP Integration | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| F47 | SSH CLI Access | ✅ | ✅ | N/A | N/A | ✅ | ✅ |
+| F48 | SSO Integration | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| F49 | SMS Security | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| F50 | Email Security | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| F51 | WhatsApp Security | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| F52 | 2FA (TOTP/HOTP) | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| F53 | 802.1x NAC | ✅ | ⚠️ | ⬜ | ⬜ | ⬜ | ⬜ |
+| F54 | FQDN Rules | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
+
+> F48 (SSO) blocked pending IdP details from owner. F53 (802.1x) needs `wpad-openssl` in BSP.
 
 ### Gap Features (G01–G12)
 
 | ID | Feature | Design | Implement | REST API | LuCI UI | Tested | Done |
 |----|---------|--------|-----------|----------|---------|--------|------|
 | G01 | DPI Engine | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| G02 | SSL/TLS Inspection | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| G02 | SSL/TLS Inspection | ✅ | ✅ | ⬜ | ✅ | ✅ | ✅ |
 | G03 | High Availability | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | G04 | Management RBAC | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | G05 | Reporting & Analytics | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -424,13 +426,16 @@ For each feature in FEATURES.md:
 
 | Section | TC Count | ⬜ Not Run | 🔄 Running | ✅ Pass | ❌ Fail | ⚠️ Blocked |
 |---------|----------|-----------|-----------|--------|--------|-----------|
-| S1: Functional & Routing | 8 | 8 | 0 | 0 | 0 | 0 |
+| S1: Functional & Routing | 8 | 4 | 0 | 4 | 0 | 4 |
 | S2: NG Security | 8 | 8 | 0 | 0 | 0 | 0 |
 | S3: Threat Prevention | 12 | 12 | 0 | 0 | 0 | 0 |
 | S4: Performance | 8 | 8 | 0 | 0 | 0 | 0 |
 | S5: Management | 8 | 8 | 0 | 0 | 0 | 0 |
 | S6: Additional | 10 | 10 | 0 | 0 | 0 | 0 |
-| **TOTAL** | **54** | **54** | **0** | **0** | **0** | **0** |
+| **TOTAL** | **54** | **50** | **0** | **4** | **0** | **4** |
+
+> S1 notes: TC-F-005/006/007/008 PASS (single-router, 16/16 sub-checks).
+> TC-F-001/002/003/004 blocked — require second router (HA/BGP/VRRP).
 
 ---
 
