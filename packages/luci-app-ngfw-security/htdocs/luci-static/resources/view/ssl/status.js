@@ -126,7 +126,7 @@ return view.extend({
 						])
 					])
 				]),
-				E('div', { 'style': 'margin-top:10px;display:flex;gap:8px' }, [
+				E('div', { 'style': 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px' }, [
 					E('button', {
 						'class': 'cbi-button cbi-button-apply',
 						'click': ui.createHandlerFn(this, function() {

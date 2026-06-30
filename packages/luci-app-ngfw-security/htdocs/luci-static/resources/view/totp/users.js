@@ -195,13 +195,13 @@ return view.extend({
 					/* Username */
 					E('td', { 'style': 'padding:8px 12px;font-weight:600' }, u),
 					/* Status */
-					E('td', { 'style': 'padding:8px 12px' }, [
+					E('td', { 'style': 'padding:8px 12px;white-space:nowrap' }, [
 						isLocked
 							? E('span', { 'style': 'color:#e74c3c;font-weight:bold' }, '&#128274; ' + _('LOCKED'))
 							: E('span', { 'style': 'color:#27ae60;font-weight:bold' }, '&#10003; ' + _('Active'))
 					]),
 					/* Test OTP */
-					E('td', { 'style': 'padding:8px 12px' }, [
+					E('td', { 'style': 'padding:8px 12px;white-space:nowrap' }, [
 						testInput,
 						E('button', {
 							'class': 'cbi-button',
@@ -218,7 +218,7 @@ return view.extend({
 						}, _('Verify'))
 					]),
 					/* Actions */
-					E('td', { 'style': 'padding:8px 12px' }, [
+					E('td', { 'style': 'padding:8px 12px;white-space:nowrap' }, [
 						isLocked
 							? E('button', {
 								'class': 'cbi-button',

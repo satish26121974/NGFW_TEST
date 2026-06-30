@@ -127,7 +127,7 @@ return view.extend({
 				),
 				this._row(
 					_('Squid Control'),
-					E('span', {}, [
+					E('div', {'style': 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px'}, [
 						E('button', {
 							'class': 'cbi-button cbi-button-apply',
 							'style': 'margin-right:6px',
@@ -213,7 +213,7 @@ return view.extend({
 				}, certFP)) : '',
 				this._row(
 					_('Download CA Cert'),
-					E('span', {}, [
+					E('div', {'style': 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px'}, [
 						E('a', {
 							'href': '/cgi-bin/luci/admin/services/ssl/cert',
 							'class': 'cbi-button cbi-button-action',
