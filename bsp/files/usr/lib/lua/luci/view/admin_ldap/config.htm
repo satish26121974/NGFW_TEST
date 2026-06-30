@@ -59,7 +59,7 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
 </h2>
 
 <% if msg then %>
-<div class="alert alert-<%=msgtype or 'info'%>"><%=msg%></div>
+<div class="alert alert-<% if msgtype then %><%=msgtype%><% else %>info<% end %>"><%=msg%></div>
 <% end %>
 
 <form method="post" action="<%=luci.dispatcher.build_url("admin","services","ldap","save")%>">
@@ -73,14 +73,14 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
         <div class="toggle-wrap">
           <label class="toggle">
             <input type="checkbox" name="status" value="1" id="toggle_status"
-              <%=cfg.status=="ENABLE" and "checked" or ""%>>
+              <% if cfg.status == "ENABLE" then %>checked<% end %>>
             <span class="slider"></span>
           </label>
           <span class="toggle-label" id="status_label">
-            <%=cfg.status=="ENABLE" and "ENABLED" or "DISABLED"%>
+            <% if cfg.status == "ENABLE" then %>ENABLED<% else %>DISABLED<% end %>
           </span>
         </div>
-        <div class="ldap-hint">When enabled, admin logins are authenticated via AD/LDAP with local fallback.</div>
+        <div class="ldap-hint"><%:When enabled, admin logins are authenticated via AD/LDAP with local fallback.%></div>
       </div>
     </div>
   </div>
@@ -96,11 +96,11 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
         <div class="ldap-label"><%:Directory Type%></div>
         <div class="ldap-input">
           <select name="ldap_type" id="ldap_type">
-            <option value="AD"       <%=cfg.ldap_type=="AD"       and "selected" or ""%>>Active Directory (AD)</option>
-            <option value="OpenLDAP" <%=cfg.ldap_type=="OpenLDAP" and "selected" or ""%>>OpenLDAP</option>
-            <option value="LDAP"     <%=cfg.ldap_type=="LDAP"     and "selected" or ""%>>Generic LDAP</option>
+            <option value="AD"       <% if cfg.ldap_type == "AD"       then %>selected<% end %>>Active Directory (AD)</option>
+            <option value="OpenLDAP" <% if cfg.ldap_type == "OpenLDAP" then %>selected<% end %>>OpenLDAP</option>
+            <option value="LDAP"     <% if cfg.ldap_type == "LDAP"     then %>selected<% end %>>Generic LDAP</option>
           </select>
-          <div class="ldap-hint">Active Directory uses sAMAccountName; OpenLDAP uses uid.</div>
+          <div class="ldap-hint"><%:Active Directory uses sAMAccountName; OpenLDAP uses uid.%></div>
         </div>
       </div>
 
@@ -109,7 +109,7 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
         <div class="ldap-input">
           <input type="text" name="server" value="<%=cfg.server%>"
                  placeholder="192.168.1.10 or dc.corp.local">
-          <div class="ldap-hint">IP address or hostname of the AD/LDAP server.</div>
+          <div class="ldap-hint"><%:IP address or hostname of the AD/LDAP server.%></div>
         </div>
       </div>
 
@@ -118,7 +118,7 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
         <div class="ldap-input">
           <input type="number" name="port" value="<%=cfg.port%>"
                  placeholder="389" min="1" max="65535" style="max-width:120px;">
-          <div class="ldap-hint">389 = LDAP (plain/STARTTLS) &nbsp;|&nbsp; 636 = LDAPS (SSL)</div>
+          <div class="ldap-hint"><%:389 = LDAP (plain/STARTTLS) | 636 = LDAPS (SSL)%></div>
         </div>
       </div>
 
@@ -128,12 +128,14 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
           <div class="toggle-wrap">
             <label class="toggle">
               <input type="checkbox" name="tls" value="1" id="toggle_tls"
-                <%=(cfg.tls=="true" or cfg.tls=="1") and "checked" or ""%>>
+                <% if cfg.tls == "true" then %>checked<% end %>>
               <span class="slider"></span>
             </label>
-            <span class="toggle-label"><%=(cfg.tls=="true" or cfg.tls=="1") and "TLS ON" or "TLS OFF"%></span>
+            <span class="toggle-label">
+              <% if cfg.tls == "true" then %>TLS ON<% else %>TLS OFF<% end %>
+            </span>
           </div>
-          <div class="ldap-hint">Enable for LDAPS (port 636) or STARTTLS. Requires valid server certificate.</div>
+          <div class="ldap-hint"><%:Enable for LDAPS (port 636) or STARTTLS. Requires valid server certificate.%></div>
         </div>
       </div>
     </fieldset>
@@ -159,7 +161,7 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
         <div class="ldap-input">
           <input type="password" name="bind_pass" value="<%=cfg.bind_pass%>"
                  placeholder="Service account password" autocomplete="new-password">
-          <div class="ldap-hint">Password for the service account used to search the directory.</div>
+          <div class="ldap-hint"><%:Password for the service account used to search the directory.%></div>
         </div>
       </div>
     </fieldset>
@@ -173,16 +175,20 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
         <div class="ldap-input">
           <input type="text" name="base_dn" value="<%=cfg.base_dn%>"
                  placeholder="DC=corp,DC=local">
-          <div class="ldap-hint">Search root for users and groups.</div>
+          <div class="ldap-hint"><%:Search root for users and groups.%></div>
         </div>
       </div>
 
       <div class="ldap-row">
         <div class="ldap-label"><%:User Filter%></div>
         <div class="ldap-input">
-          <input type="text" name="user_filter"
-                 value="<%=cfg.user_filter~="" and cfg.user_filter or "(sAMAccountName=%u)"%>"
+          <% if cfg.user_filter and cfg.user_filter ~= "" then %>
+          <input type="text" name="user_filter" value="<%=cfg.user_filter%>"
                  placeholder="(sAMAccountName=%u)">
+          <% else %>
+          <input type="text" name="user_filter" value=""
+                 placeholder="(sAMAccountName=%u)">
+          <% end %>
           <div class="ldap-hint">
             <code>%u</code> = username. AD: <code>(sAMAccountName=%u)</code>
             &nbsp; OpenLDAP: <code>(uid=%u)</code>
@@ -195,7 +201,7 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
         <div class="ldap-input">
           <input type="text" name="group_filter" value="<%=cfg.group_filter%>"
                  placeholder="CN=NGFW_Admins,OU=Groups,DC=corp,DC=local">
-          <div class="ldap-hint">If set, user must be a member of this group to log in. Leave empty to allow all users.</div>
+          <div class="ldap-hint"><%:If set, user must be a member of this group to log in. Leave empty to allow all users.%></div>
         </div>
       </div>
     </fieldset>
@@ -212,7 +218,7 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
 </form>
 
 <!-- ── Apply log ─────────────────────────────────────────────────── -->
-<% if log and log ~= "" then %>
+<% if log then %>
 <div class="ldap-card" style="margin-top:16px;">
   <h3><%:Last Apply Log%></h3>
   <div id="apply-log" style="display:block;"><%=log%></div>
@@ -220,7 +226,6 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
 <% end %>
 
 <script>
-// Toggle label update
 document.getElementById("toggle_status").addEventListener("change", function() {
     document.getElementById("status_label").textContent = this.checked ? "ENABLED" : "DISABLED";
 });
@@ -239,14 +244,14 @@ function testConnection() {
     el.style.background = "#d9edf7";
     el.style.border = "1px solid #bce8f1";
     el.style.color = "#31708f";
-    el.textContent = "Testing connection…";
+    el.textContent = "Testing connection...";
 
     fetch("<%=luci.dispatcher.build_url('admin','services','ldap','test')%>", {
         method: "GET",
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
     .then(function(r) { return r.json(); })
-    .then(function(d) { showResult(el, d.ok, (d.ok ? "✓ " : "✗ ") + d.msg); })
+    .then(function(d) { showResult(el, d.ok, (d.ok ? "OK: " : "FAIL: ") + d.msg); })
     .catch(function(e) { showResult(el, false, "Request failed: " + e); });
 }
 
@@ -256,7 +261,7 @@ function applyNow() {
     el.style.background = "#fcf8e3";
     el.style.border = "1px solid #faebcc";
     el.style.color = "#8a6d3b";
-    el.textContent = "Applying configuration to FreeRADIUS…";
+    el.textContent = "Applying configuration to FreeRADIUS...";
 
     fetch("<%=luci.dispatcher.build_url('admin','services','ldap','apply')%>", {
         method: "GET",
@@ -265,7 +270,6 @@ function applyNow() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
         showResult(el, d.ok, d.msg);
-        // Refresh page after 2s to show updated log
         setTimeout(function() { location.reload(); }, 2000);
     })
     .catch(function(e) { showResult(el, false, "Request failed: " + e); });
