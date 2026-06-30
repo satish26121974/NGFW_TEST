@@ -15,7 +15,7 @@ define Package/luci-app-snmp
   SUBMENU:=3. Applications
   TITLE:=UniGr8ways SNMP Configuration
   PKGARCH:=all
-  DEPENDS:=luci-base python3 net-snmp net-snmp-utils
+  DEPENDS:=luci-base python3
 endef
 
 define Package/luci-app-snmp/description
