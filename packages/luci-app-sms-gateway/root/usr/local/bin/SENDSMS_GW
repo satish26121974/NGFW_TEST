@@ -1,0 +1,292 @@
+#!/usr/bin/env python3
+"""
+SENDSMS_GW — HTTP SMS Gateway client for UniGr8ways NGFW
+Usage: SENDSMS_GW <number> <message>
+       SENDSMS_GW --test              (send test message to configured numbers)
+       SENDSMS_GW --status            (check gateway connectivity)
+
+Reads config from /appdata/FWCONFIG/SMSGateway.json
+Supports: Fast2SMS, MSG91, Twilio, Vonage, TextLocal, Custom HTTP
+"""
+import json, sys, os, time, urllib.request, urllib.parse, urllib.error, ssl
+
+CFG_FILE = '/appdata/FWCONFIG/SMSGateway.json'
+LOG_FILE = '/var/log/BELRAS/sms_gateway.log'
+
+# ── Logging ────────────────────────────────────────────────────────────
+def log(msg, level='INFO'):
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+    ts = time.strftime('%Y-%m-%d %H:%M:%S')
+    line = '[%s] [%s] %s\n' % (ts, level, msg)
+    with open(LOG_FILE, 'a') as f:
+        f.write(line)
+    print(line.strip())
+
+# ── Load config ────────────────────────────────────────────────────────
+def load_cfg():
+    try:
+        return json.load(open(CFG_FILE))
+    except Exception as e:
+        log('Config error: %s' % e, 'ERROR')
+        sys.exit(1)
+
+# ── HTTP helper ────────────────────────────────────────────────────────
+def http_call(url, method='GET', headers=None, body=None, auth=None, timeout=15):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode    = ssl.CERT_NONE  # many SMS APIs use certs that may not validate
+
+    req = urllib.request.Request(url, method=method)
+    if headers:
+        for k, v in headers.items():
+            req.add_header(k, v)
+    if auth:
+        import base64
+        token = base64.b64encode(auth.encode()).decode()
+        req.add_header('Authorization', 'Basic ' + token)
+    if body:
+        if isinstance(body, str):
+            body = body.encode('utf-8')
+        req.data = body
+
+    try:
+        resp = urllib.request.urlopen(req, context=ctx, timeout=timeout)
+        status = resp.status
+        text   = resp.read().decode('utf-8', 'replace')
+        return status, text
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode('utf-8', 'replace')
+    except Exception as e:
+        return 0, str(e)
+
+# ── Provider implementations ───────────────────────────────────────────
+
+def send_fast2sms(cfg, numbers, message):
+    """
+    Fast2SMS Bulk API v2
+    Docs: https://docs.fast2sms.com/
+    Route: q (quick/transactional) or dlt (DLT registered)
+    """
+    nums_str = ','.join(n.lstrip('+') for n in numbers)
+    route    = cfg.get('Route', 'q')
+    params   = urllib.parse.urlencode({
+        'authorization': cfg['ApiKey'],
+        'sender_id':     cfg.get('SenderId', 'FSTSMS'),
+        'message':       message,
+        'route':         route,
+        'numbers':       nums_str,
+        'flash':         '0'
+    })
+    url = 'https://www.fast2sms.com/dev/bulkV2?' + params
+    status, resp = http_call(url, method='GET',
+                             headers={'cache-control': 'no-cache'})
+    try:
+        data = json.loads(resp)
+        ok   = data.get('return', False)
+        msg  = data.get('message', [resp])[0] if isinstance(data.get('message'), list) else str(data.get('message', resp))
+    except Exception:
+        ok, msg = False, resp[:200]
+    return ok, msg
+
+def send_msg91(cfg, numbers, message):
+    """
+    MSG91 Send SMS API
+    Docs: https://docs.msg91.com/
+    """
+    nums_str = ','.join(n.lstrip('+') for n in numbers)
+    url      = 'https://api.msg91.com/api/v5/flow/'
+    payload  = json.dumps({
+        'flow_id':   cfg.get('FlowId', ''),
+        'sender':    cfg.get('SenderId', 'NGFWMS'),
+        'mobiles':   nums_str,
+        'VAR1':      message
+    })
+    status, resp = http_call(
+        url, method='POST',
+        headers={'authkey': cfg['ApiKey'], 'Content-Type': 'application/json'},
+        body=payload)
+    try:
+        data = json.loads(resp)
+        ok   = data.get('type', '') == 'success'
+        msg  = data.get('message', resp)
+    except Exception:
+        ok, msg = False, resp[:200]
+    return ok, msg
+
+def send_twilio(cfg, numbers, message):
+    """
+    Twilio Programmable Messaging API
+    Docs: https://www.twilio.com/docs/sms/api
+    """
+    account_sid = cfg.get('AccountSid', '')
+    auth_token  = cfg.get('AuthToken', '')
+    from_num    = cfg.get('FromNumber', '')
+    results     = []
+    for number in numbers:
+        url     = 'https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json' % account_sid
+        payload = urllib.parse.urlencode({'To': number, 'From': from_num, 'Body': message})
+        status, resp = http_call(
+            url, method='POST',
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            auth='%s:%s' % (account_sid, auth_token),
+            body=payload)
+        try:
+            data = json.loads(resp)
+            ok   = data.get('status') in ('queued', 'sent', 'delivered')
+            msg  = data.get('status', resp[:100])
+        except Exception:
+            ok, msg = (status == 201), resp[:100]
+        results.append((ok, '%s: %s' % (number, msg)))
+    all_ok = all(r[0] for r in results)
+    return all_ok, ' | '.join(r[1] for r in results)
+
+def send_vonage(cfg, numbers, message):
+    """
+    Vonage (Nexmo) SMS API
+    Docs: https://developer.vonage.com/api/sms
+    """
+    results = []
+    for number in numbers:
+        payload = urllib.parse.urlencode({
+            'api_key':    cfg['ApiKey'],
+            'api_secret': cfg.get('ApiSecret', ''),
+            'to':         number.lstrip('+'),
+            'from':       cfg.get('SenderId', 'NGFW'),
+            'text':       message
+        })
+        status, resp = http_call(
+            'https://rest.nexmo.com/sms/json', method='POST',
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            body=payload)
+        try:
+            data     = json.loads(resp)
+            messages = data.get('messages', [{}])
+            ok       = messages[0].get('status') == '0'
+            msg      = messages[0].get('error-text', messages[0].get('status', ''))
+        except Exception:
+            ok, msg = False, resp[:100]
+        results.append((ok, '%s: %s' % (number, msg or 'sent')))
+    all_ok = all(r[0] for r in results)
+    return all_ok, ' | '.join(r[1] for r in results)
+
+def send_textlocal(cfg, numbers, message):
+    """
+    TextLocal SMS API (India)
+    Docs: https://api.textlocal.in/docs/
+    """
+    nums_str = ','.join(n.lstrip('+') for n in numbers)
+    payload  = urllib.parse.urlencode({
+        'apikey':  cfg['ApiKey'],
+        'numbers': nums_str,
+        'message': message,
+        'sender':  cfg.get('SenderId', 'NGFW')
+    })
+    status, resp = http_call(
+        'https://api.textlocal.in/send/', method='POST',
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        body=payload)
+    try:
+        data = json.loads(resp)
+        ok   = data.get('status') == 'success'
+        msg  = data.get('errors', [{'message': 'sent'}])[0].get('message', resp[:100]) if not ok else 'sent'
+    except Exception:
+        ok, msg = False, resp[:100]
+    return ok, msg
+
+def send_custom(cfg, numbers, message):
+    """
+    Custom HTTP webhook — user-defined URL with template variables.
+    Template vars: {ApiKey} {SenderId} {Numbers} {Message} {Number}
+    """
+    url_tpl  = cfg.get('Url', '')
+    method   = cfg.get('Method', 'POST').upper()
+    body_tpl = cfg.get('Body', '')
+    hdr_tpl  = cfg.get('Headers', {})
+
+    def subst(s, number):
+        nums_str = ','.join(numbers)
+        return (s.replace('{ApiKey}',   cfg.get('ApiKey', ''))
+                 .replace('{SenderId}', cfg.get('SenderId', ''))
+                 .replace('{Numbers}',  nums_str)
+                 .replace('{Number}',   number)
+                 .replace('{Message}',  urllib.parse.quote(message) if method == 'GET' else message))
+
+    results = []
+    for number in numbers:
+        url     = subst(url_tpl, number)
+        body    = subst(body_tpl, number).encode() if body_tpl else None
+        headers = {k: subst(v, number) for k, v in hdr_tpl.items()}
+        if body and 'Content-Type' not in headers:
+            headers['Content-Type'] = 'application/x-www-form-urlencoded'
+        status, resp = http_call(url, method=method, headers=headers, body=body)
+        ok = 200 <= status < 300
+        results.append((ok, '%s: HTTP %d' % (number, status)))
+
+    all_ok = all(r[0] for r in results)
+    return all_ok, ' | '.join(r[1] for r in results)
+
+# ── Dispatch ───────────────────────────────────────────────────────────
+PROVIDERS = {
+    'fast2sms':  send_fast2sms,
+    'msg91':     send_msg91,
+    'twilio':    send_twilio,
+    'vonage':    send_vonage,
+    'textlocal': send_textlocal,
+    'custom':    send_custom,
+}
+
+def send(numbers, message):
+    cfg      = load_cfg()
+    if cfg.get('Status', 'DISABLE') != 'ENABLE':
+        log('SMS Gateway DISABLED — message not sent', 'WARN')
+        sys.exit(2)
+
+    provider = cfg.get('Provider', 'fast2sms').lower()
+    fn       = PROVIDERS.get(provider)
+    if not fn:
+        log('Unknown provider: %s' % provider, 'ERROR')
+        sys.exit(1)
+
+    log('Sending via %s to %s: %s' % (provider, numbers, message[:50]))
+    ok, detail = fn(cfg, numbers, message)
+
+    if ok:
+        log('Sent OK via %s: %s' % (provider, detail))
+    else:
+        log('Send FAILED via %s: %s' % (provider, detail), 'ERROR')
+        # Fallback to modem if enabled
+        if cfg.get('FallbackToModem', False):
+            log('Falling back to modem...', 'WARN')
+            for n in numbers:
+                os.system('/usr/local/bin/SENDSMS "%s" "%s" 2>/dev/null' % (n, message))
+        sys.exit(1)
+
+# ── Entry point ────────────────────────────────────────────────────────
+if __name__ == '__main__':
+    args = sys.argv[1:]
+
+    if not args or args[0] == '--help':
+        print('Usage: SENDSMS_GW <number> <message>')
+        print('       SENDSMS_GW --test')
+        print('       SENDSMS_GW --status')
+        sys.exit(0)
+
+    if args[0] == '--status':
+        cfg = load_cfg()
+        print('Provider : %s' % cfg.get('Provider', 'not set'))
+        print('Status   : %s' % cfg.get('Status', 'DISABLE'))
+        print('Numbers  : %s' % cfg.get('Numbers', []))
+        sys.exit(0)
+
+    if args[0] == '--test':
+        cfg     = load_cfg()
+        numbers = cfg.get('Numbers', [])
+        if not numbers:
+            print('No numbers configured in SMSGateway.json'); sys.exit(1)
+        send(numbers, 'Test SMS from UniGr8ways NGFW gateway - %s' % time.strftime('%H:%M %d/%m'))
+        sys.exit(0)
+
+    if len(args) < 2:
+        print('Usage: SENDSMS_GW <number> <message>'); sys.exit(1)
+
+    send([args[0]], ' '.join(args[1:]))

@@ -1,0 +1,17 @@
+{
+	"admin/services/sms-gateway": {
+		"title": "SMS Gateway",
+		"order": 69,
+		"action": { "type": "firstchild" }
+	},
+	"admin/services/sms-gateway/settings": {
+		"title": "Settings",
+		"order": 1,
+		"action": { "type": "view", "path": "sms-gateway/settings" }
+	},
+	"admin/services/sms-gateway/test": {
+		"title": "Test & Log",
+		"order": 2,
+		"action": { "type": "view", "path": "sms-gateway/test" }
+	}
+}

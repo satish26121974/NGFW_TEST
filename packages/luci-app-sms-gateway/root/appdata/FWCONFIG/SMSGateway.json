@@ -1,0 +1,18 @@
+{
+  "Status": "DISABLE",
+  "Provider": "fast2sms",
+  "ApiKey": "",
+  "SenderId": "NGFWMS",
+  "Numbers": ["+919xxxxxxxxx"],
+  "FallbackToModem": false,
+  "Route": "q",
+  "AccountSid": "",
+  "AuthToken": "",
+  "FromNumber": "",
+  "ApiSecret": "",
+  "FlowId": "",
+  "Url": "",
+  "Method": "POST",
+  "Body": "",
+  "Headers": {}
+}
