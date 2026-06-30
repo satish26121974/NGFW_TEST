@@ -7,6 +7,10 @@ PKG_RELEASE:=1
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=UniGr8ways <support@unigr8ways.com>
+# NOTE: OpenWRT 23.05+ changed .ipk format from ar archive to gzip tar.
+# The outer .ipk is now a gzip-compressed tar containing:
+#   ./debian-binary, ./control.tar.gz, ./data.tar.gz
+# Build this package with: make package/luci-app-ngfw-security/compile
 
 include $(INCLUDE_DIR)/package.mk
 
