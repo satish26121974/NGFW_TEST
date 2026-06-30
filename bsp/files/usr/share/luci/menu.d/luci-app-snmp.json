@@ -1,0 +1,42 @@
+{
+	"admin/services/snmp": {
+		"title": "SNMP",
+		"order": 70,
+		"action": {
+			"type": "firstchild"
+		},
+		"icon": "resources/icons/snmp.svg"
+	},
+	"admin/services/snmp/settings": {
+		"title": "Settings",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "snmp/settings"
+		}
+	},
+	"admin/services/snmp/communities": {
+		"title": "Communities",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "snmp/communities"
+		}
+	},
+	"admin/services/snmp/v3users": {
+		"title": "SNMPv3 Users",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "snmp/v3users"
+		}
+	},
+	"admin/services/snmp/status": {
+		"title": "Status",
+		"order": 40,
+		"action": {
+			"type": "view",
+			"path": "snmp/status"
+		}
+	}
+}
