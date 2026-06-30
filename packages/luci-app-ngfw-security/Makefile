@@ -18,25 +18,24 @@ define Package/luci-app-ngfw-security
   SECTION:=luci
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
-  TITLE:=UniGr8ways NGFW Security Management
+  TITLE:=UniGr8ways NGFW Security (meta-package)
   PKGARCH:=all
-  DEPENDS:=+luci-base +python3 +jq +freeradius3
+  DEPENDS:=+luci-app-ssl-inspection +luci-app-ad-ldap +luci-app-tacacs +luci-app-2fa +luci-app-fqdn +luci-app-alerts
 endef
 
 define Package/luci-app-ngfw-security/description
-  LuCI management interface for UniGr8ways NGFW security features.
+  Meta-package that installs all UniGr8ways NGFW LuCI security apps:
+    - luci-app-ssl-inspection  (SSL/TLS Inspection)
+    - luci-app-ad-ldap         (AD/LDAP Authentication)
+    - luci-app-tacacs          (TACACS+ Authentication)
+    - luci-app-2fa             (2FA TOTP)
+    - luci-app-fqdn            (FQDN-Based Firewall Rules)
+    - luci-app-alerts          (Alert Notifications: SMS/Email/WhatsApp)
 
-  Includes:
-    - AD/LDAP Authentication (Lua CBI + FreeRADIUS)
-    - TACACS+ Authentication with live test
-    - 2FA TOTP — user enrol, verify, revoke
-    - FQDN-Based Firewall Rules (dynamic ipset + DNS)
-    - Alert Notifications — SMS / Email / WhatsApp
-    - SSH key-based auth enforced on first boot (uci-defaults)
+  Also includes SSH key-based auth (uci-defaults) and
+  modified system scripts (IPSSTART, SDOSSTART, Linkcheck.sh).
 
-  Backend scripts deployed to /usr/local/bin/:
-    TACAUTH  TOTP  SENDSMS  SENDEMAIL  SENDWHATSAPP  SENDALERT
-    FQDNRULES  APPLYLDAP  SSLBUMPSTART  UPDATEHOMENET
+  Install individual packages directly for selective deployment.
 endef
 
 # No compile step — all files are pre-built scripts and JS

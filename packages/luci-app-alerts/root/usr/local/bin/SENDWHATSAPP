@@ -1,0 +1,18 @@
+#!/bin/bash
+# SENDWHATSAPP - send WhatsApp message via Meta Cloud API
+# Usage: SENDWHATSAPP <phone_e164_no_plus> <message>
+PHONE="$1"; MESSAGE="$2"
+CFG=/appdata/FWCONFIG/WhatsAppAlert.json
+[ -f "$CFG" ] || { echo "No WhatsAppAlert.json"; exit 1; }
+STATUS=$(jq -r '.Status' "$CFG")
+[ "$STATUS" = "ENABLE" ] || exit 0
+TOKEN=$(jq -r '.Token' "$CFG")
+PHONE_ID=$(jq -r '.PhoneNumberId' "$CFG")
+MSG_ESC=$(printf '%s' "$MESSAGE" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+curl --silent -X POST \
+    "https://graph.facebook.com/v18.0/${PHONE_ID}/messages" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"messaging_product\":\"whatsapp\",\"to\":\"${PHONE}\",\"type\":\"text\",\"text\":{\"body\":${MSG_ESC}}}" \
+    -o /dev/null
+logger -t SENDWHATSAPP "WA sent to $PHONE"

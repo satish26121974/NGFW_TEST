@@ -1,0 +1,7 @@
+{
+  "Status": "DISABLE",
+  "Token": "EAAxxxxxxxxxxxxxx",
+  "PhoneNumberId": "1234567890",
+  "Recipients": ["919xxxxxxxxx"],
+  "Triggers": ["WAN_DOWN","IPS_ALERT","HA_FAILOVER","LICENSE_EXPIRY"]
+}

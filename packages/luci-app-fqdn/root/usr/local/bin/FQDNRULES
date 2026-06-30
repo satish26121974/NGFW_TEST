@@ -1,0 +1,51 @@
+#!/bin/bash
+# FQDNRULES — FQDN-based firewall rules using ipset + DNS resolution
+# Reads /appdata/FWCONFIG/FQDNRules.json, resolves domains, applies iptables
+# Run via cron every 5 minutes for TTL-based refresh
+
+CFG=/appdata/FWCONFIG/FQDNRules.json
+[ -f "$CFG" ] || exit 0
+
+STATUS=$(jq -r '.Status' "$CFG" 2>/dev/null)
+[ "$STATUS" = "ENABLE" ] || exit 0
+
+IPSET_PREFIX="fqdn_"
+LOG=/var/log/fqdnrules.log
+
+# Process each FQDN rule
+jq -c '.Rules[]' "$CFG" 2>/dev/null | while read RULE; do
+    FQDN=$(echo "$RULE"   | jq -r '.FQDN')
+    ACTION=$(echo "$RULE" | jq -r '.Action')       # block | allow
+    CHAIN=$(echo "$RULE"  | jq -r '.Chain // "FORWARD"')
+    SETNAME="${IPSET_PREFIX}$(echo $FQDN | tr '.' '_' | tr '-' '_' | cut -c1-28)"
+
+    # Create ipset if not exists
+    ipset list "$SETNAME" > /dev/null 2>&1 || \
+        ipset create "$SETNAME" hash:ip timeout 300 2>/dev/null
+
+    # Resolve FQDN to IPs (A records only)
+    IPS=$(dig +short "$FQDN" A @127.0.0.1 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')
+    [ -z "$IPS" ] && IPS=$(nslookup "$FQDN" 2>/dev/null | grep 'Address:' | grep -v '#' | awk '{print $2}')
+
+    if [ -z "$IPS" ]; then
+        echo "$(date): WARN no IPs resolved for $FQDN" >> "$LOG"
+        continue
+    fi
+
+    # Flush old IPs and add fresh ones
+    ipset flush "$SETNAME" 2>/dev/null
+    echo "$IPS" | while read IP; do
+        ipset add "$SETNAME" "$IP" timeout 360 2>/dev/null
+    done
+
+    # Apply iptables rule (idempotent)
+    TARGET=$([ "$ACTION" = "block" ] && echo "DROP" || echo "ACCEPT")
+    iptables -C "$CHAIN" -m set --match-set "$SETNAME" dst -j "$TARGET" 2>/dev/null || \
+        iptables -I "$CHAIN" 1 -m comment --comment "FQDN_${FQDN}" \
+            -m set --match-set "$SETNAME" dst -j "$TARGET"
+
+    echo "$(date): $ACTION $FQDN -> $(echo $IPS | tr '\n' ' ')" >> "$LOG"
+done
+
+# Keep log under 500 lines
+[ $(wc -l < "$LOG" 2>/dev/null) -gt 500 ] && tail -200 "$LOG" > "${LOG}.tmp" && mv "${LOG}.tmp" "$LOG"

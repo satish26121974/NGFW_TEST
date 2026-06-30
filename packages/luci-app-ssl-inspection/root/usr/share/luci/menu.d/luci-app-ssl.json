@@ -1,0 +1,17 @@
+{
+	"admin/services/ssl": {
+		"title": "SSL Inspection",
+		"order": 65,
+		"action": { "type": "firstchild" }
+	},
+	"admin/services/ssl/settings": {
+		"title": "Settings",
+		"order": 1,
+		"action": { "type": "view", "path": "ssl/settings" }
+	},
+	"admin/services/ssl/status": {
+		"title": "Live Status",
+		"order": 2,
+		"action": { "type": "view", "path": "ssl/status" }
+	}
+}

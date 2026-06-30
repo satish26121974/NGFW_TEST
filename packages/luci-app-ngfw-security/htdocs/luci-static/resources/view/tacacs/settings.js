@@ -38,9 +38,12 @@ return view.extend({
 	_toggle: function(id, checked, label) {
 		var cb = E('input', { 'id': id, 'type': 'checkbox', 'class': 'cbi-input-checkbox' });
 		if (checked) cb.setAttribute('checked', 'checked');
-		return E('span', {}, [
-			cb, ' ',
-			E('label', { 'for': id }, label || '')
+		return E('div', { 'style': 'display:flex;align-items:center;gap:10px;flex-wrap:nowrap' }, [
+			E('div', { 'style': 'flex-shrink:0' }, [cb]),
+			E('label', {
+				'for': id,
+				'style': 'font-weight:normal;margin:0;cursor:pointer;line-height:1.4'
+			}, label || '')
 		]);
 	},
 

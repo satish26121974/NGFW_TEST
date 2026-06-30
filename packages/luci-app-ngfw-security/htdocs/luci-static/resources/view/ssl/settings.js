@@ -118,9 +118,12 @@ return view.extend({
 			E('div', { 'class': 'cbi-section-node' }, [
 				this._row(
 					_('Enable SSL Inspection'),
-					E('span', {}, [enableCb, ' ',
-						E('label', { 'for': 'ssl-enabled' },
-							_('Decrypt and inspect HTTPS traffic via Squid ssl_bump'))
+					E('div', { 'style': 'display:flex;align-items:center;gap:10px;flex-wrap:nowrap' }, [
+						E('div', { 'style': 'flex-shrink:0' }, [enableCb]),
+						E('label', {
+							'for': 'ssl-enabled',
+							'style': 'font-weight:normal;margin:0;cursor:pointer;line-height:1.4'
+						}, _('Decrypt and inspect HTTPS traffic via Squid ssl_bump'))
 					]),
 					_('When enabled, all HTTPS traffic is transparently intercepted. ' +
 					  'Clients must trust the CA certificate below to avoid browser warnings.')

@@ -1,0 +1,27 @@
+{
+	"admin/services/alerts": {
+		"title": "Alert Notifications",
+		"order": 68,
+		"action": { "type": "firstchild" }
+	},
+	"admin/services/alerts/overview": {
+		"title": "Overview",
+		"order": 1,
+		"action": { "type": "view", "path": "alerts/overview" }
+	},
+	"admin/services/alerts/sms": {
+		"title": "SMS",
+		"order": 2,
+		"action": { "type": "view", "path": "alerts/sms" }
+	},
+	"admin/services/alerts/email": {
+		"title": "Email",
+		"order": 3,
+		"action": { "type": "view", "path": "alerts/email" }
+	},
+	"admin/services/alerts/whatsapp": {
+		"title": "WhatsApp",
+		"order": 4,
+		"action": { "type": "view", "path": "alerts/whatsapp" }
+	}
+}
