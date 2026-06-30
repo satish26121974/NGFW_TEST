@@ -1,0 +1,19 @@
+Runtime error
+Unhandled exception during request dispatching
+/usr/lib/lua/luci/ucodebridge.lua:23: /usr/lib/lua/luci/template.lua:158: Failed to load template 'admin_ldap/config'.
+Error while parsing template '/usr/lib/lua/luci/view/admin_ldap/config.htm':
+Syntax error in /usr/lib/lua/luci/view/admin_ldap/config.htm:67: unexpected symbol near 'or'
+
+In error(), file [C]
+called from function [anonymous function] (/usr/lib/lua/luci/ucodebridge.lua:23)
+called from function ((tail call))
+In [anonymous function](), file /usr/share/ucode/luci/runtime.uc, line 148, byte 45:
+  called from function [arrow function] (/usr/share/ucode/luci/dispatcher.uc:794:4)
+  called from function render ([C])
+  called from function render_action (/usr/share/ucode/luci/dispatcher.uc:768:24)
+  called from function run_action (/usr/share/ucode/luci/dispatcher.uc:795:4)
+  called from function [anonymous function] (/usr/share/ucode/luci/dispatcher.uc:1003:48)
+  called from anonymous function (/www/cgi-bin/luci:39:13)
+
+ `        return lcall.call(modname, method, ...args);`
+  Near here ----------------------------------------^

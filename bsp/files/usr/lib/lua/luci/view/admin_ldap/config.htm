@@ -64,8 +64,6 @@ fieldset.ldap-section legend { font-weight:700; color:#337ab7; padding:0 8px; fo
 
 <form method="post" action="<%=luci.dispatcher.build_url("admin","services","ldap","save")%>">
 
-  <%- luci.http.formvalue("token") or "" %>
-
   <!-- ── Enable / Disable ──────────────────────────────────────────── -->
   <div class="ldap-card">
     <h3><%:Service Control%></h3>
