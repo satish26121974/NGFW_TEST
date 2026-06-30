@@ -1,15 +1,15 @@
 {
-	"admin/network/fqdn": {
+	"admin/services/fqdn": {
 		"title": "FQDN Rules",
 		"order": 64,
 		"action": { "type": "firstchild" }
 	},
-	"admin/network/fqdn/rules": {
+	"admin/services/fqdn/rules": {
 		"title": "Rules",
 		"order": 1,
 		"action": { "type": "view", "path": "fqdn/rules" }
 	},
-	"admin/network/fqdn/status": {
+	"admin/services/fqdn/status": {
 		"title": "Live Status",
 		"order": 2,
 		"action": { "type": "view", "path": "fqdn/status" }
