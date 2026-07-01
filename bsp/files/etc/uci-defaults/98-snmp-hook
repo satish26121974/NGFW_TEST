@@ -1,10 +1,16 @@
 #!/bin/sh
 # Inject SNMPV3INJECT hook into /etc/init.d/snmpd on first boot.
 # Mirrors luci-app-snmp postinst for BSP files-overlay deployments.
-# SNMPV3.json is already present at /appdata/FWCONFIG/SNMPV3.json (baked into image).
 
 INIT="/etc/init.d/snmpd"
 MARKER="SNMPV3_INJECT_HOOK"
+SNMPV3_CFG="/appdata/FWCONFIG/SNMPV3.json"
+SNMPV3_DEFAULT="/appdata/FWCONFIG/SNMPV3.json.default"
+
+# Initialize SNMPV3.json from default if not present
+if [ ! -f "$SNMPV3_CFG" ] && [ -f "$SNMPV3_DEFAULT" ]; then
+    cp "$SNMPV3_DEFAULT" "$SNMPV3_CFG"
+fi
 
 if [ -f "$INIT" ] && ! grep -q "$MARKER" "$INIT" 2>/dev/null; then
     awk -v marker="$MARKER" '
