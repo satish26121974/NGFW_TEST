@@ -34,6 +34,8 @@ define Package/luci-app-countryfilter/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/countryfilter
 	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/countryfilter/settings.js \
 		$(1)/www/luci-static/resources/view/countryfilter/
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/countryfilter/world-map-paths.js \
+		$(1)/www/luci-static/resources/view/countryfilter/
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-countryfilter.json \
 		$(1)/usr/share/luci/menu.d/

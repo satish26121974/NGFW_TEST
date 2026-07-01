@@ -102,10 +102,19 @@ return view.extend({
 
 	load: function() {
 		this.blocked = new Set();
+		var pathsLoad = new Promise(function(resolve) {
+			if (typeof CF_COUNTRY_BOUNDS !== 'undefined') return resolve();
+			var s = document.createElement('script');
+			s.src = '/luci-static/resources/view/countryfilter/world-map-paths.js';
+			s.onload  = resolve;
+			s.onerror = resolve;
+			document.head.appendChild(s);
+		});
 		return Promise.all([
 			L.resolveDefault(callReadFile('/appdata/BlockCountry.txt'), ''),
 			L.resolveDefault(callReadFile('/appdata/CountryIPAllowed.txt'), ''),
-			L.resolveDefault(callExec('ls /usr/share/xt_geoip/*.iv4 2>/dev/null | wc -l'), '0')
+			L.resolveDefault(callExec('ls /usr/share/xt_geoip/*.iv4 2>/dev/null | wc -l'), '0'),
+			pathsLoad
 		]);
 	},
 
@@ -129,37 +138,39 @@ return view.extend({
 
 	buildMap: function() {
 		var self = this;
-		var circles = COUNTRIES.map(function(c) {
-			var code = c[0], name = c[1], lat = c[2], lon = c[3], r = c[4];
-			var x  = self.lonToX(lon).toFixed(1);
-			var y  = self.latToY(lat).toFixed(1);
-			var on = self.blocked.has(code);
-			return '<circle class="cf-dot" id="dot-' + code + '" cx="' + x + '" cy="' + y +
-				'" r="' + r + '" fill="' + (on ? '#ef5350' : '#66bb6a') +
-				'" stroke="' + (on ? '#b71c1c' : '#1b5e20') + '" stroke-width="0.8" opacity="0.88"' +
-				' data-code="' + code + '" data-name="' + name + '">' +
-				'<title>' + name + ' (' + code + ')</title></circle>';
-		}).join('');
+		var hasPaths = (typeof CF_COUNTRY_BOUNDS !== 'undefined');
+		var elements = '';
 
-		var land = [
-			'M 26,56 L 330,44 L 350,90 L 290,130 L 267,183 L 240,208 L 230,228 L 200,200 L 130,140 L 80,95 Z',
-			'M 310,18 L 390,12 L 400,50 L 360,60 L 310,45 Z',
-			'M 200,228 L 290,215 L 330,270 L 320,360 L 265,420 L 230,400 L 215,340 L 200,280 Z',
-			'M 430,55 L 530,50 L 540,80 L 500,110 L 480,130 L 440,120 L 420,90 Z',
-			'M 440,130 L 530,120 L 560,150 L 550,260 L 510,340 L 470,360 L 440,300 L 420,200 L 430,155 Z',
-			'M 530,50 L 840,40 L 870,100 L 820,140 L 760,160 L 700,200 L 640,180 L 580,160 L 540,120 L 530,80 Z',
-			'M 680,140 L 730,135 L 740,200 L 720,240 L 690,230 L 675,180 Z',
-			'M 760,180 L 820,175 L 830,240 L 800,260 L 765,240 L 755,200 Z',
-			'M 760,270 L 870,260 L 890,330 L 870,380 L 810,390 L 760,350 L 750,300 Z'
-		].join(' ');
+		COUNTRIES.forEach(function(c) {
+			var code = c[0], name = c[1], on = self.blocked.has(code);
+			var fill   = on ? '#ef5350' : '#66bb6a';
+			var stroke = on ? '#b71c1c' : '#2e7d32';
+			var title  = '<title>' + name + ' (' + code + ')</title>';
+
+			if (hasPaths && CF_COUNTRY_BOUNDS[code]) {
+				var d = CF_COUNTRY_BOUNDS[code].map(function(poly) {
+					return 'M ' + poly.map(function(pt) {
+						return self.lonToX(pt[0]).toFixed(1) + ',' + self.latToY(pt[1]).toFixed(1);
+					}).join(' L ') + ' Z';
+				}).join(' ');
+				elements += '<path class="cf-country" id="cpath-' + code + '" d="' + d + '"' +
+					' fill="' + fill + '" stroke="' + stroke + '" stroke-width="0.4" opacity="0.9"' +
+					' data-code="' + code + '" data-name="' + name + '">' + title + '</path>';
+			} else {
+				var x = self.lonToX(c[3]).toFixed(1);
+				var y = self.latToY(c[2]).toFixed(1);
+				elements += '<circle class="cf-dot" id="dot-' + code + '" cx="' + x + '" cy="' + y +
+					'" r="' + c[4] + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="0.8" opacity="0.88"' +
+					' data-code="' + code + '" data-name="' + name + '">' + title + '</circle>';
+			}
+		});
 
 		return '<div style="position:relative">' +
 			'<svg id="cf-world-map" viewBox="0 0 960 480" ' +
-				'style="width:100%;height:400px;display:block;border-radius:8px;cursor:crosshair;' +
+				'style="width:100%;height:420px;display:block;border-radius:8px;cursor:crosshair;' +
 				'background:linear-gradient(170deg,#1a237e 0%,#1565c0 40%,#0277bd 100%);' +
 				'box-shadow:0 2px 12px rgba(0,0,0,0.3)">' +
-				'<path d="' + land + '" fill="#2e7d32" fill-opacity="0.25" stroke="#4caf50" stroke-width="0.5" stroke-opacity="0.4"/>' +
-				circles +
+				elements +
 				'<rect id="cf-tip-bg" x="0" y="0" width="180" height="28" rx="4" fill="#212121" fill-opacity="0.88" style="display:none"/>' +
 				'<text id="cf-tip-txt" x="8" y="19" fill="#fff" font-size="12" font-family="sans-serif" style="display:none;pointer-events:none"></text>' +
 			'</svg>' +
@@ -383,11 +394,11 @@ return view.extend({
 		var tipTxt = container.querySelector('#cf-tip-txt');
 		if (svg) {
 			svg.addEventListener('click', function(ev) {
-				var el = ev.target.closest ? ev.target.closest('.cf-dot') : null;
+				var el = ev.target.closest ? ev.target.closest('.cf-country, .cf-dot') : null;
 				if (el) self.toggleCountry(el.dataset.code, container);
 			});
 			svg.addEventListener('mousemove', function(ev) {
-				var el = ev.target.closest ? ev.target.closest('.cf-dot') : null;
+				var el = ev.target.closest ? ev.target.closest('.cf-country, .cf-dot') : null;
 				if (el && tipBg && tipTxt) {
 					var rect = svg.getBoundingClientRect();
 					var vb   = svg.viewBox.baseVal;
@@ -466,11 +477,11 @@ return view.extend({
 	},
 
 	refreshDot: function(code) {
-		var dot = document.getElementById('dot-' + code);
-		if (!dot) return;
+		var el = document.getElementById('cpath-' + code) || document.getElementById('dot-' + code);
+		if (!el) return;
 		var on = this.blocked.has(code);
-		dot.setAttribute('fill',   on ? '#ef5350' : '#66bb6a');
-		dot.setAttribute('stroke', on ? '#b71c1c' : '#1b5e20');
+		el.setAttribute('fill',   on ? '#ef5350' : '#66bb6a');
+		el.setAttribute('stroke', on ? '#b71c1c' : '#2e7d32');
 	},
 
 	refreshBlockedPanel: function(container) {
