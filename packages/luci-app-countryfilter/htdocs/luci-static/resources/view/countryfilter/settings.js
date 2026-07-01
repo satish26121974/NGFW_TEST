@@ -4,10 +4,7 @@
 'require ui';
 'require dom';
 
-/* All 195 UN member states + key territories
-   [code, name, lat, lon, radius]
-   lat/lon = geographic centroid
-   radius = relative area (2=tiny, 4=small, 6=medium, 8=large, 12=very large, 15=continent-scale) */
+/* [code, name, lat, lon, radius] */
 var COUNTRIES = [
 	['AF','Afghanistan',33.9,67.7,7],['AL','Albania',41.1,20.2,4],['DZ','Algeria',28.0,3.0,10],
 	['AD','Andorra',42.5,1.5,3],['AO','Angola',-11.2,17.9,9],['AG','Antigua & Barbuda',17.1,-61.8,3],
@@ -117,10 +114,10 @@ return view.extend({
 		var last  = lines[lines.length - 1] || '';
 		if (!lines.length || last === 'DISABLE') {
 			this.enabled = false;
-			this.blocked  = new Set();
+			this.blocked = new Set();
 		} else {
 			this.enabled = true;
-			this.blocked  = new Set(lines.filter(function(l){ return l !== 'DISABLE'; }));
+			this.blocked = new Set(lines.filter(function(l){ return l !== 'DISABLE'; }));
 		}
 		this.allowedIPs = (allowData || '').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
 	},
@@ -128,419 +125,406 @@ return view.extend({
 	lonToX: function(lon) { return ((lon + 180) / 360 * 960); },
 	latToY: function(lat) { return ((90 - lat) / 180 * 480); },
 
+	/* ── Map View ─────────────────────────────────────────────── */
+
 	buildMap: function() {
 		var self = this;
-		var W = 960, H = 480;
-
 		var circles = COUNTRIES.map(function(c) {
 			var code = c[0], name = c[1], lat = c[2], lon = c[3], r = c[4];
-			var x = self.lonToX(lon).toFixed(1);
-			var y = self.latToY(lat).toFixed(1);
-			var blocked = self.blocked.has(code);
-			var fill    = blocked ? '#ef5350' : '#66bb6a';
-			var glow    = blocked ? '#b71c1c' : '#1b5e20';
-			return '<circle class="cf-dot" id="dot-' + code + '" ' +
-				'cx="' + x + '" cy="' + y + '" r="' + r + '" ' +
-				'fill="' + fill + '" stroke="' + glow + '" stroke-width="0.8" opacity="0.88" ' +
-				'data-code="' + code + '" data-name="' + name + '">' +
-				'<title>' + name + ' (' + code + ') — ' + (blocked ? 'BLOCKED' : 'Allowed') + '</title>' +
-				'</circle>';
+			var x  = self.lonToX(lon).toFixed(1);
+			var y  = self.latToY(lat).toFixed(1);
+			var on = self.blocked.has(code);
+			return '<circle class="cf-dot" id="dot-' + code + '" cx="' + x + '" cy="' + y +
+				'" r="' + r + '" fill="' + (on ? '#ef5350' : '#66bb6a') +
+				'" stroke="' + (on ? '#b71c1c' : '#1b5e20') + '" stroke-width="0.8" opacity="0.88"' +
+				' data-code="' + code + '" data-name="' + name + '">' +
+				'<title>' + name + ' (' + code + ')</title></circle>';
 		}).join('');
 
-		/* simplified continent land polygons for geographic context */
 		var land = [
-			/* North America */
 			'M 26,56 L 330,44 L 350,90 L 290,130 L 267,183 L 240,208 L 230,228 L 200,200 L 130,140 L 80,95 Z',
-			/* Greenland */
 			'M 310,18 L 390,12 L 400,50 L 360,60 L 310,45 Z',
-			/* South America */
 			'M 200,228 L 290,215 L 330,270 L 320,360 L 265,420 L 230,400 L 215,340 L 200,280 Z',
-			/* Europe */
 			'M 430,55 L 530,50 L 540,80 L 500,110 L 480,130 L 440,120 L 420,90 Z',
-			/* Africa */
 			'M 440,130 L 530,120 L 560,150 L 550,260 L 510,340 L 470,360 L 440,300 L 420,200 L 430,155 Z',
-			/* Asia (simplified) */
 			'M 530,50 L 840,40 L 870,100 L 820,140 L 760,160 L 700,200 L 640,180 L 580,160 L 540,120 L 530,80 Z',
-			/* Middle East */
-			'M 540,120 L 620,115 L 640,160 L 590,180 L 560,165 Z',
-			/* Indian subcontinent */
 			'M 680,140 L 730,135 L 740,200 L 720,240 L 690,230 L 675,180 Z',
-			/* SE Asia */
 			'M 760,180 L 820,175 L 830,240 L 800,260 L 765,240 L 755,200 Z',
-			/* Australia */
-			'M 760,270 L 870,260 L 890,330 L 870,380 L 810,390 L 760,350 L 750,300 Z',
-			/* Japan */
-			'M 840,110 L 860,105 L 865,130 L 850,135 Z',
-			/* UK/Ireland */
-			'M 435,70 L 450,65 L 455,85 L 438,88 Z'
+			'M 760,270 L 870,260 L 890,330 L 870,380 L 810,390 L 760,350 L 750,300 Z'
 		].join(' ');
 
 		return '<div style="position:relative">' +
-		'<svg id="cf-world-map" viewBox="0 0 ' + W + ' ' + H + '" ' +
-			'style="width:100%;height:420px;display:block;border-radius:8px;cursor:crosshair;' +
-			'background:linear-gradient(170deg,#1a237e 0%,#1565c0 40%,#0277bd 100%);' +
-			'box-shadow:0 4px 20px rgba(0,0,0,0.4)">' +
-			'<defs>' +
-				'<filter id="glow-r"><feGaussianBlur stdDeviation="3" result="b"/>' +
-					'<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
-				'<filter id="glow-g"><feGaussianBlur stdDeviation="2" result="b"/>' +
-					'<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
-			'</defs>' +
-			'<path d="' + land + '" fill="#2e7d32" fill-opacity="0.25" stroke="#4caf50" stroke-width="0.5" stroke-opacity="0.4"/>' +
-			circles +
-			'<rect id="cf-tooltip-bg" x="0" y="0" width="180" height="28" rx="4" fill="#212121" fill-opacity="0.85" style="display:none"/>' +
-			'<text id="cf-tooltip-txt" x="8" y="19" fill="#fff" font-size="12" font-family="sans-serif" style="display:none;pointer-events:none"></text>' +
-		'</svg>' +
-		'<div style="position:absolute;bottom:8px;right:8px;display:flex;gap:12px;font-size:11px;color:#fff;' +
-			'background:rgba(0,0,0,0.5);padding:4px 10px;border-radius:4px">' +
-			'<span>&#9679; <span style="color:#66bb6a">Allowed</span></span>' +
-			'<span>&#9679; <span style="color:#ef5350">Blocked</span></span>' +
-			'<span style="opacity:0.6">Click to toggle</span>' +
-		'</div>' +
-		'</div>';
+			'<svg id="cf-world-map" viewBox="0 0 960 480" ' +
+				'style="width:100%;height:400px;display:block;border-radius:8px;cursor:crosshair;' +
+				'background:linear-gradient(170deg,#1a237e 0%,#1565c0 40%,#0277bd 100%);' +
+				'box-shadow:0 2px 12px rgba(0,0,0,0.3)">' +
+				'<path d="' + land + '" fill="#2e7d32" fill-opacity="0.25" stroke="#4caf50" stroke-width="0.5" stroke-opacity="0.4"/>' +
+				circles +
+				'<rect id="cf-tip-bg" x="0" y="0" width="180" height="28" rx="4" fill="#212121" fill-opacity="0.88" style="display:none"/>' +
+				'<text id="cf-tip-txt" x="8" y="19" fill="#fff" font-size="12" font-family="sans-serif" style="display:none;pointer-events:none"></text>' +
+			'</svg>' +
+			'<div style="position:absolute;bottom:8px;right:8px;display:flex;gap:12px;font-size:11px;color:#fff;' +
+				'background:rgba(0,0,0,0.5);padding:4px 10px;border-radius:4px">' +
+				'<span>&#9679; <span style="color:#66bb6a">Allowed</span></span>' +
+				'<span>&#9679; <span style="color:#ef5350">Restricted</span></span>' +
+				'<span style="opacity:0.7">Click to toggle</span>' +
+			'</div></div>';
 	},
 
-	buildStats: function() {
-		var total   = COUNTRIES.length;
-		var blocked = this.blocked.size;
-		var allowed = total - blocked;
-		return '<div style="display:flex;gap:16px;margin:12px 0;flex-wrap:wrap">' +
-			'<div style="flex:1;min-width:120px;background:linear-gradient(135deg,#1b5e20,#2e7d32);' +
-				'color:#fff;padding:12px 16px;border-radius:8px;text-align:center">' +
-				'<div style="font-size:28px;font-weight:700">' + allowed + '</div>' +
-				'<div style="font-size:12px;opacity:0.85">Allowed Countries</div></div>' +
-			'<div style="flex:1;min-width:120px;background:linear-gradient(135deg,#b71c1c,#c62828);' +
-				'color:#fff;padding:12px 16px;border-radius:8px;text-align:center">' +
-				'<div style="font-size:28px;font-weight:700">' + blocked + '</div>' +
-				'<div style="font-size:12px;opacity:0.85">Blocked Countries</div></div>' +
-			'<div style="flex:1;min-width:120px;background:linear-gradient(135deg,#0d47a1,#1565c0);' +
-				'color:#fff;padding:12px 16px;border-radius:8px;text-align:center">' +
-				'<div style="font-size:28px;font-weight:700">' + total + '</div>' +
-				'<div style="font-size:12px;opacity:0.85">Total Countries</div></div>' +
-		'</div>';
-	},
+	/* ── List View ────────────────────────────────────────────── */
 
-	buildCountryList: function() {
+	buildBlockedList: function() {
+		if (!this.blocked.size)
+			return '<li style="list-style:none;color:#aaa;font-style:italic">None selected</li>';
 		var self = this;
-		var rows = COUNTRIES.map(function(c) {
-			var code    = c[0], name = c[1];
-			var blocked = self.blocked.has(code);
-			var badgeBg = blocked ? '#ef5350' : '#66bb6a';
-			var badge   = blocked ? 'BLOCKED' : 'Allowed';
-			return '<tr id="row-' + code + '" style="cursor:pointer" ' +
-				'onclick="this.getRootNode().host ? void 0 : window.__cfToggle && window.__cfToggle(\'' + code + '\')">' +
-				'<td style="padding:6px 10px;font-weight:600;color:#888;width:50px">' + code + '</td>' +
-				'<td style="padding:6px 4px">' + name + '</td>' +
-				'<td style="padding:6px 10px;text-align:right">' +
-					'<span id="badge-' + code + '" style="display:inline-block;padding:2px 10px;border-radius:12px;' +
-					'font-size:11px;font-weight:600;color:#fff;background:' + badgeBg + '">' + badge + '</span>' +
+		return Array.from(this.blocked).sort().map(function(code) {
+			var entry = COUNTRIES.filter(function(c){ return c[0] === code; })[0];
+			return '<li style="padding:2px 0">' + (entry ? entry[1] : code) + '</li>';
+		}).join('');
+	},
+
+	buildListView: function() {
+		var self = this;
+		var sorted = COUNTRIES.slice().sort(function(a, b){ return a[0] < b[0] ? -1 : 1; });
+
+		var rows = sorted.map(function(c, i) {
+			var code = c[0], name = c[1];
+			var chk  = self.blocked.has(code);
+			return '<tr data-code="' + code + '" data-name="' + name.toLowerCase() + '">' +
+				'<td style="padding:5px 8px;text-align:center;width:36px">' +
+					'<input type="checkbox" class="cf-chk" data-code="' + code + '"' + (chk ? ' checked' : '') + '/>' +
 				'</td>' +
+				'<td style="padding:5px 4px;color:#999;font-size:11px;width:44px">' + (i + 1) + '</td>' +
+				'<td style="padding:5px 4px;font-weight:700;font-family:monospace;font-size:12px;width:70px">' + code + '</td>' +
+				'<td style="padding:5px 4px;font-size:13px">' + name + '</td>' +
 			'</tr>';
 		}).join('');
 
-		return '<div style="margin-top:16px">' +
-			'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
-				'<input id="cf-search" type="text" placeholder="Search country..." ' +
-					'style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px" ' +
-					'oninput="window.__cfSearch && window.__cfSearch(this.value)"/>' +
-				'<button onclick="window.__cfBlockAll && window.__cfBlockAll()" ' +
-					'style="padding:7px 14px;background:#b71c1c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Block All</button>' +
-				'<button onclick="window.__cfClearAll && window.__cfClearAll()" ' +
-					'style="padding:7px 14px;background:#2e7d32;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">Allow All</button>' +
-			'</div>' +
-			'<div style="max-height:320px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:6px">' +
-				'<table style="width:100%;border-collapse:collapse;font-size:13px" id="cf-country-table">' +
-					'<thead><tr style="background:#f5f5f5;position:sticky;top:0">' +
-						'<th style="padding:8px 10px;text-align:left;color:#555">Code</th>' +
-						'<th style="padding:8px 4px;text-align:left;color:#555">Country</th>' +
-						'<th style="padding:8px 10px;text-align:right;color:#555">Status</th>' +
-					'</tr></thead>' +
-					'<tbody id="cf-tbody">' + rows + '</tbody>' +
+		return '<div style="display:flex;gap:14px;align-items:flex-start">' +
+
+			/* left: table */
+			'<div style="flex:1;min-width:0;border:1px solid #e0e0e0;border-radius:6px;overflow:hidden">' +
+				'<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+					'<thead>' +
+						'<tr style="background:#f5f5f5;border-bottom:1px solid #e0e0e0">' +
+							'<th style="padding:7px 8px;text-align:center;width:36px">' +
+								'<input type="checkbox" id="cf-chk-all" title="Toggle all visible"/>' +
+							'</th>' +
+							'<th style="padding:7px 4px;text-align:left;color:#555;font-size:12px;width:44px">SR NO</th>' +
+							'<th style="padding:7px 4px;text-align:left;color:#555;font-size:12px;width:70px">COUNTRY CODE</th>' +
+							'<th style="padding:7px 4px;text-align:left;color:#555;font-size:12px">COUNTRY NAME</th>' +
+						'</tr>' +
+						'<tr style="background:#fafafa;border-bottom:1px solid #e0e0e0">' +
+							'<th></th><th></th>' +
+							'<th style="padding:4px">' +
+								'<input type="text" id="cf-search-code" placeholder="Search..." ' +
+									'style="width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:11px"/>' +
+							'</th>' +
+							'<th style="padding:4px">' +
+								'<input type="text" id="cf-search-name" placeholder="Search..." ' +
+									'style="width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:11px"/>' +
+							'</th>' +
+						'</tr>' +
+					'</thead>' +
 				'</table>' +
+				'<div style="max-height:380px;overflow-y:auto">' +
+					'<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+						'<tbody id="cf-list-tbody">' + rows + '</tbody>' +
+					'</table>' +
+				'</div>' +
 			'</div>' +
+
+			/* right: blocked panel */
+			'<div style="width:210px;flex-shrink:0">' +
+				'<div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:6px;padding:12px;min-height:300px">' +
+					'<div style="font-weight:600;font-size:13px;color:#333;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #e0e0e0">' +
+						'Blocked Country Name' +
+					'</div>' +
+					'<ul id="cf-blocked-panel" style="margin:0;padding-left:16px;font-size:12px;color:#555">' +
+						this.buildBlockedList() +
+					'</ul>' +
+				'</div>' +
+			'</div>' +
+
 		'</div>';
 	},
 
-	buildAllowedIPs: function() {
-		var rows = this.allowedIPs.map(function(entry, i) {
-			var parts = entry.split(':');
-			var label = parts[0] || '';
-			var ip    = parts.slice(1).join(':') || '';
-			return '<tr>' +
-				'<td style="padding:6px 8px"><input type="text" value="' + label + '" ' +
-					'id="al-lbl-' + i + '" style="width:100%;border:1px solid #ddd;border-radius:4px;padding:4px 6px"/></td>' +
-				'<td style="padding:6px 8px"><input type="text" value="' + ip + '" ' +
-					'id="al-ip-' + i + '" style="width:100%;border:1px solid #ddd;border-radius:4px;padding:4px 6px"/></td>' +
-				'<td style="padding:6px 8px;width:60px">' +
-					'<button onclick="this.closest(\'tr\').remove()" ' +
-						'style="background:#ef5350;color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer">&#10005;</button>' +
-				'</td></tr>';
-		}).join('');
-
-		return '<div style="margin-top:20px">' +
-			'<div style="font-weight:600;margin-bottom:8px;color:#333">Bypass IPs ' +
-				'<span style="font-size:11px;font-weight:400;color:#888">' +
-				'(always allowed even if their country is blocked)</span></div>' +
-			'<table style="width:100%;border-collapse:collapse;font-size:13px" id="cf-allow-table">' +
-				'<thead><tr style="background:#f5f5f5">' +
-					'<th style="padding:6px 8px;text-align:left;color:#555;border-bottom:1px solid #ddd">Label</th>' +
-					'<th style="padding:6px 8px;text-align:left;color:#555;border-bottom:1px solid #ddd">IP / CIDR</th>' +
-					'<th style="width:60px;border-bottom:1px solid #ddd"></th>' +
-				'</tr></thead>' +
-				'<tbody id="cf-allow-tbody">' + rows + '</tbody>' +
-			'</table>' +
-			'<button onclick="window.__cfAddIP && window.__cfAddIP()" ' +
-				'style="margin-top:8px;padding:6px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">+ Add IP</button>' +
-		'</div>';
-	},
-
-	wireEvents: function(container) {
-		var self = this;
-
-		/* toggle a single country */
-		window.__cfToggle = function(code) {
-			if (self.blocked.has(code)) {
-				self.blocked.delete(code);
-			} else {
-				self.blocked.add(code);
-			}
-			self.refreshDot(code);
-			self.refreshRow(code);
-			self.refreshStats(container);
-		};
-
-		/* map hover tooltip */
-		var svg = container.querySelector('#cf-world-map');
-		var tipBg  = container.querySelector('#cf-tooltip-bg');
-		var tipTxt = container.querySelector('#cf-tooltip-txt');
-		if (svg) {
-			svg.addEventListener('mousemove', function(ev) {
-				var el = ev.target.closest('.cf-dot');
-				if (el) {
-					var svgRect = svg.getBoundingClientRect();
-					var vb = svg.viewBox.baseVal;
-					var sx = (ev.clientX - svgRect.left) / svgRect.width  * vb.width;
-					var sy = (ev.clientY - svgRect.top)  / svgRect.height * vb.height;
-					var name  = el.dataset.name;
-					var code  = el.dataset.code;
-					var state = self.blocked.has(code) ? 'BLOCKED' : 'Allowed';
-					var txt   = name + ' (' + code + ') — ' + state;
-					var tw    = Math.max(txt.length * 7 + 16, 160);
-					tipBg.setAttribute('x', sx + 10);
-					tipBg.setAttribute('y', sy - 22);
-					tipBg.setAttribute('width', tw);
-					tipBg.style.display = '';
-					tipTxt.setAttribute('x', sx + 18);
-					tipTxt.setAttribute('y', sy - 6);
-					tipTxt.textContent = txt;
-					tipTxt.style.display = '';
-				} else {
-					tipBg.style.display = 'none';
-					tipTxt.style.display = 'none';
-				}
-			});
-			svg.addEventListener('mouseleave', function() {
-				tipBg.style.display = 'none';
-				tipTxt.style.display = 'none';
-			});
-			svg.addEventListener('click', function(ev) {
-				var el = ev.target.closest('.cf-dot');
-				if (el) window.__cfToggle(el.dataset.code);
-			});
-		}
-
-		/* search */
-		window.__cfSearch = function(q) {
-			q = q.toLowerCase();
-			var rows = container.querySelectorAll('#cf-tbody tr');
-			rows.forEach(function(r) {
-				var txt = r.textContent.toLowerCase();
-				r.style.display = txt.includes(q) ? '' : 'none';
-			});
-		};
-
-		/* bulk actions */
-		window.__cfBlockAll = function() {
-			COUNTRIES.forEach(function(c){ self.blocked.add(c[0]); });
-			self.refreshAll(container);
-		};
-		window.__cfClearAll = function() {
-			self.blocked.clear();
-			self.refreshAll(container);
-		};
-
-		/* add allowed IP row */
-		window.__cfAddIP = function() {
-			var tbody = container.querySelector('#cf-allow-tbody');
-			var i     = tbody.rows.length;
-			var tr    = document.createElement('tr');
-			tr.innerHTML =
-				'<td style="padding:6px 8px"><input type="text" placeholder="Label" ' +
-					'id="al-lbl-' + i + '" style="width:100%;border:1px solid #ddd;border-radius:4px;padding:4px 6px"/></td>' +
-				'<td style="padding:6px 8px"><input type="text" placeholder="192.168.1.0/24" ' +
-					'id="al-ip-' + i + '" style="width:100%;border:1px solid #ddd;border-radius:4px;padding:4px 6px"/></td>' +
-				'<td style="padding:6px 8px;width:60px">' +
-					'<button onclick="this.closest(\'tr\').remove()" ' +
-						'style="background:#ef5350;color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer">&#10005;</button>' +
-				'</td>';
-			tbody.appendChild(tr);
-		};
-	},
-
-	refreshDot: function(code) {
-		var dot = document.getElementById('dot-' + code);
-		if (!dot) return;
-		var blocked = this.blocked.has(code);
-		dot.setAttribute('fill',   blocked ? '#ef5350' : '#66bb6a');
-		dot.setAttribute('stroke', blocked ? '#b71c1c' : '#1b5e20');
-		var title = dot.querySelector('title');
-		if (title) title.textContent = dot.dataset.name + ' (' + code + ') — ' + (blocked ? 'BLOCKED' : 'Allowed');
-	},
-
-	refreshRow: function(code) {
-		var badge = document.getElementById('badge-' + code);
-		if (!badge) return;
-		var blocked = this.blocked.has(code);
-		badge.style.background = blocked ? '#ef5350' : '#66bb6a';
-		badge.textContent      = blocked ? 'BLOCKED' : 'Allowed';
-	},
-
-	refreshAll: function(container) {
-		COUNTRIES.forEach(function(c){ this.refreshDot(c[0]); this.refreshRow(c[0]); }, this);
-		this.refreshStats(container);
-	},
-
-	refreshStats: function(container) {
-		var el = container.querySelector('#cf-stats');
-		if (el) el.innerHTML = this.buildStats();
-	},
-
-	collectAllowedIPs: function(container) {
-		var result = [];
-		var rows   = container.querySelectorAll('#cf-allow-tbody tr');
-		rows.forEach(function(r, i) {
-			var lbl = (r.querySelector('input[id^="al-lbl-"]') || {}).value || '';
-			var ip  = (r.querySelector('input[id^="al-ip-"]')  || {}).value || '';
-			lbl = lbl.trim(); ip = ip.trim();
-			if (ip) result.push(lbl ? lbl + ':' + ip : ':' + ip);
-		});
-		return result;
-	},
+	/* ── Render ───────────────────────────────────────────────── */
 
 	render: function(data) {
 		var self = this;
 		this.parseConfig(data[0], data[1]);
 		var geoipCount = parseInt((data[2] || '').trim()) || 0;
 
-		var geoipWarning = geoipCount < 10
-			? '<div style="background:#fff3e0;border:1px solid #ff9800;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px">' +
-				'&#9888; GeoIP database not found at <code>/usr/share/xt_geoip/</code>. ' +
-				'Country blocking requires the <b>xt-geoip</b> package and GeoIP data to be installed.' +
-			  '</div>'
-			: '<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:13px">' +
-				'&#10003; GeoIP database loaded (' + geoipCount + ' country files found)' +
-			  '</div>';
+		/* header bar */
+		var hdr = E('div', { 'class': 'cbi-section', style: 'padding:14px 18px;border-radius:8px;margin-bottom:10px' });
+		hdr.innerHTML =
+			'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">' +
 
-		var el = E('div', { style: 'max-width:1100px' }, [
-			E('h2', { style: 'margin:0 0 4px;color:#212121' }, 'Country Filter'),
-			E('p',  { style: 'color:#666;margin:0 0 16px;font-size:13px' },
-				'Block incoming traffic from selected countries using GeoIP firewall rules.'),
+				/* left: title + enable toggle */
+				'<div style="display:flex;align-items:center;gap:12px">' +
+					'<span style="font-size:15px;font-weight:600;color:#333">Set country filter:</span>' +
+					'<label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;' +
+						'background:#f5f5f5;border:1px solid #ddd;border-radius:20px;padding:5px 14px">' +
+						'<input type="checkbox" id="cf-enable"' + (this.enabled ? ' checked' : '') +
+							' style="width:15px;height:15px;cursor:pointer"/>' +
+						'<span id="cf-enable-label" style="font-weight:700;font-size:13px;' +
+							(this.enabled ? 'color:#2e7d32' : 'color:#c62828') + '">' +
+							(this.enabled ? 'Enable' : 'Disable') +
+						'</span>' +
+					'</label>' +
+				'</div>' +
 
-			E('div', { 'class': 'cbi-section', style: 'padding:16px 20px;border-radius:8px' }, [
+				/* right: view radio + ADD button */
+				'<div style="display:flex;align-items:center;gap:10px">' +
+					'<div style="display:inline-flex;border:1px solid #bbb;border-radius:6px;overflow:hidden;font-size:13px">' +
+						'<label id="lbl-map" style="display:flex;align-items:center;gap:5px;padding:6px 14px;cursor:pointer;' +
+							'background:#1565c0;color:#fff;user-select:none">' +
+							'<input type="radio" name="cf-view" value="map" id="rb-map" style="accent-color:#fff" checked/> Map View' +
+						'</label>' +
+						'<label id="lbl-list" style="display:flex;align-items:center;gap:5px;padding:6px 14px;cursor:pointer;' +
+							'background:#fff;color:#333;user-select:none">' +
+							'<input type="radio" name="cf-view" value="list" id="rb-list" style="accent-color:#1565c0"/> List View' +
+						'</label>' +
+					'</div>' +
+					'<button id="cf-add-btn" style="padding:6px 16px;background:#2e7d32;color:#fff;border:none;' +
+						'border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">+ ADD COUNTRIES</button>' +
+				'</div>' +
 
-				/* Enable toggle */
-				E('div', { style: 'display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #eee' }, [
-					E('span', { style: 'font-size:15px;font-weight:600;color:#333' }, 'Country Filter:'),
-					E('label', { style: 'display:flex;align-items:center;gap:8px;cursor:pointer' }, [
-						E('input', {
-							type: 'checkbox',
-							id: 'cf-enable',
-							checked: this.enabled ? 'checked' : null,
-							style: 'width:18px;height:18px;cursor:pointer'
-						}),
-						E('span', { id: 'cf-enable-label', style: 'font-weight:600;' +
-							(this.enabled ? 'color:#2e7d32' : 'color:#b71c1c') },
-							this.enabled ? 'ENABLED' : 'DISABLED')
-					])
-				]),
+			'</div>' +
 
-				/* GeoIP status */
-				E('div', { innerHTML: geoipWarning }),
+			/* geoip status */
+			(geoipCount < 10
+				? '<div style="margin-top:10px;background:#fff3e0;border:1px solid #ff9800;border-radius:5px;padding:7px 12px;font-size:12px">' +
+					'&#9888; GeoIP database not found at /usr/share/xt_geoip/. Install the xt-geoip package.</div>'
+				: '<div style="margin-top:10px;background:#e8f5e9;border:1px solid #4caf50;border-radius:5px;padding:7px 12px;font-size:12px">' +
+					'&#10003; GeoIP database ready &mdash; ' + geoipCount + ' country files found</div>'
+			);
 
-				/* Stats */
-				E('div', { id: 'cf-stats', innerHTML: this.buildStats() }),
+		/* map panel */
+		var mapPanel = E('div', { id: 'cf-map-panel' });
+		mapPanel.innerHTML = this.buildMap();
 
-				/* Map */
-				E('div', { style: 'margin-bottom:16px', innerHTML: this.buildMap() }),
+		/* list panel */
+		var listPanel = E('div', { id: 'cf-list-panel', style: 'display:none' });
+		listPanel.innerHTML = this.buildListView();
 
-				/* Country list */
-				E('div', { innerHTML: this.buildCountryList() }),
+		/* save button */
+		var saveBtn = E('button', {
+			id: 'cf-save-btn',
+			style: 'padding:9px 26px;background:#1565c0;color:#fff;border:none;' +
+				'border-radius:6px;font-size:13px;font-weight:600;cursor:pointer',
+			'click': function(ev) { self.handleSave(ev, container); }
+		}, 'Save & Apply');
 
-				/* Allowed IPs */
-				E('div', { innerHTML: this.buildAllowedIPs() }),
-
-				/* Save button */
-				E('div', { style: 'margin-top:20px;padding-top:16px;border-top:1px solid #eee;text-align:right' }, [
-					E('button', {
-						style: 'padding:10px 28px;background:#1565c0;color:#fff;border:none;' +
-							'border-radius:6px;font-size:14px;font-weight:600;cursor:pointer',
-						'click': function(ev) { self.handleSave(ev, el); }
-					}, 'Save & Apply Rules')
-				])
-			])
+		/* content card */
+		var content = E('div', { 'class': 'cbi-section', style: 'padding:16px 18px;border-radius:8px' }, [
+			mapPanel,
+			listPanel,
+			E('div', { style: 'margin-top:16px;padding-top:14px;border-top:1px solid #eee;text-align:right' }, [saveBtn])
 		]);
 
-		/* wire enable checkbox label */
-		var chk = el.querySelector('#cf-enable');
-		if (chk) {
-			chk.addEventListener('change', function() {
-				var lbl = el.querySelector('#cf-enable-label');
-				if (lbl) {
-					lbl.textContent = this.checked ? 'ENABLED' : 'DISABLED';
-					lbl.style.color  = this.checked ? '#2e7d32' : '#b71c1c';
+		var container = E('div', { style: 'max-width:1200px' }, [hdr, content]);
+
+		requestAnimationFrame(function() { self.wireEvents(container); });
+		return container;
+	},
+
+	/* ── Events ───────────────────────────────────────────────── */
+
+	wireEvents: function(container) {
+		var self = this;
+
+		/* enable/disable label */
+		var enChk = container.querySelector('#cf-enable');
+		if (enChk) {
+			enChk.addEventListener('change', function() {
+				var lbl = container.querySelector('#cf-enable-label');
+				if (!lbl) return;
+				lbl.textContent = this.checked ? 'Enable' : 'Disable';
+				lbl.style.color  = this.checked ? '#2e7d32' : '#c62828';
+			});
+		}
+
+		/* view toggle */
+		var rbMap    = container.querySelector('#rb-map');
+		var rbList   = container.querySelector('#rb-list');
+		var mapPanel = container.querySelector('#cf-map-panel');
+		var lstPanel = container.querySelector('#cf-list-panel');
+		var lblMap   = container.querySelector('#lbl-map');
+		var lblList  = container.querySelector('#lbl-list');
+
+		function switchView(mode) {
+			var isMap = (mode === 'map');
+			if (mapPanel) mapPanel.style.display = isMap ? '' : 'none';
+			if (lstPanel) lstPanel.style.display = isMap ? 'none' : '';
+			if (lblMap)  { lblMap.style.background  = isMap ? '#1565c0' : '#fff'; lblMap.style.color  = isMap ? '#fff' : '#333'; }
+			if (lblList) { lblList.style.background = isMap ? '#fff' : '#1565c0'; lblList.style.color = isMap ? '#333' : '#fff'; }
+			if (!isMap) self.refreshBlockedPanel(container);
+		}
+
+		if (rbMap)  rbMap.addEventListener('change',  function(){ if (this.checked) switchView('map');  });
+		if (rbList) rbList.addEventListener('change', function(){ if (this.checked) switchView('list'); });
+
+		/* ADD COUNTRIES → switches to list view */
+		var addBtn = container.querySelector('#cf-add-btn');
+		if (addBtn) {
+			addBtn.addEventListener('click', function() {
+				if (rbList && !rbList.checked) {
+					rbList.checked = true;
+					rbList.dispatchEvent(new Event('change'));
 				}
 			});
 		}
 
-		/* wire all interactive events */
-		requestAnimationFrame(function() { self.wireEvents(el); });
-
-		return el;
-	},
-
-	handleSave: function(ev, container) {
-		var self    = this;
-		var enabled = !!(container.querySelector('#cf-enable') || {}).checked;
-		var ips     = this.collectAllowedIPs(container);
-
-		var btn = ev.target;
-		btn.disabled    = true;
-		btn.textContent = 'Applying…';
-
-		var blockContent, allowContent;
-
-		if (!enabled) {
-			blockContent = 'DISABLE\n';
-		} else {
-			blockContent = Array.from(this.blocked).join('\n') + (this.blocked.size ? '\n' : 'DISABLE\n');
+		/* map click + tooltip */
+		var svg    = container.querySelector('#cf-world-map');
+		var tipBg  = container.querySelector('#cf-tip-bg');
+		var tipTxt = container.querySelector('#cf-tip-txt');
+		if (svg) {
+			svg.addEventListener('click', function(ev) {
+				var el = ev.target.closest ? ev.target.closest('.cf-dot') : null;
+				if (el) self.toggleCountry(el.dataset.code, container);
+			});
+			svg.addEventListener('mousemove', function(ev) {
+				var el = ev.target.closest ? ev.target.closest('.cf-dot') : null;
+				if (el && tipBg && tipTxt) {
+					var rect = svg.getBoundingClientRect();
+					var vb   = svg.viewBox.baseVal;
+					var sx   = (ev.clientX - rect.left) / rect.width  * vb.width;
+					var sy   = (ev.clientY - rect.top)  / rect.height * vb.height;
+					var txt  = el.dataset.name + ' (' + el.dataset.code + ') — ' + (self.blocked.has(el.dataset.code) ? 'Restricted' : 'Allowed');
+					var tw   = Math.max(txt.length * 7 + 16, 160);
+					tipBg.setAttribute('x', sx + 8); tipBg.setAttribute('y', sy - 24); tipBg.setAttribute('width', tw);
+					tipTxt.setAttribute('x', sx + 16); tipTxt.setAttribute('y', sy - 8);
+					tipTxt.textContent = txt;
+					tipBg.style.display = tipTxt.style.display = '';
+				} else if (tipBg) {
+					tipBg.style.display = tipTxt.style.display = 'none';
+				}
+			});
+			svg.addEventListener('mouseleave', function() {
+				if (tipBg) tipBg.style.display = tipTxt.style.display = 'none';
+			});
 		}
 
-		allowContent = ips.join('\n') + (ips.length ? '\n' : '');
+		/* list checkboxes */
+		var tbody = container.querySelector('#cf-list-tbody');
+		if (tbody) {
+			tbody.addEventListener('change', function(ev) {
+				if (!ev.target.classList.contains('cf-chk')) return;
+				var code = ev.target.dataset.code;
+				if (ev.target.checked) self.blocked.add(code);
+				else self.blocked.delete(code);
+				self.refreshBlockedPanel(container);
+				self.refreshDot(code);
+			});
+		}
 
-		Promise.all([
-			callWriteFile('/appdata/BlockCountry.txt',    blockContent),
-			callWriteFile('/appdata/CountryIPAllowed.txt', allowContent)
-		]).then(function() {
-			return callExec('/usr/local/bin/CountryBlockSet.sh');
-		}).then(function() {
-			btn.disabled    = false;
-			btn.textContent = 'Save & Apply Rules';
-			ui.addNotification(null, E('p', 'Country filter rules applied successfully.'), 'info');
-		}).catch(function(err) {
-			btn.disabled    = false;
-			btn.textContent = 'Save & Apply Rules';
-			ui.addNotification(null, E('p', 'Error: ' + (err.message || err)), 'error');
+		/* select-all */
+		var chkAll = container.querySelector('#cf-chk-all');
+		if (chkAll) {
+			chkAll.addEventListener('change', function() {
+				var vis = container.querySelectorAll('#cf-list-tbody tr:not([style*="display: none"]) .cf-chk, #cf-list-tbody tr:not([style*="display:none"]) .cf-chk');
+				vis.forEach(function(cb) {
+					cb.checked = chkAll.checked;
+					if (chkAll.checked) self.blocked.add(cb.dataset.code);
+					else self.blocked.delete(cb.dataset.code);
+				});
+				self.refreshBlockedPanel(container);
+			});
+		}
+
+		/* column search */
+		var scCode = container.querySelector('#cf-search-code');
+		var scName = container.querySelector('#cf-search-name');
+		function doFilter() {
+			self.filterList(container, scCode ? scCode.value : '', scName ? scName.value : '');
+		}
+		if (scCode) scCode.addEventListener('input', doFilter);
+		if (scName) scName.addEventListener('input', doFilter);
+	},
+
+	filterList: function(container, codeQ, nameQ) {
+		codeQ = (codeQ || '').toLowerCase();
+		nameQ = (nameQ || '').toLowerCase();
+		var rows = container.querySelectorAll('#cf-list-tbody tr');
+		rows.forEach(function(r) {
+			var show = (r.dataset.code || '').toLowerCase().indexOf(codeQ) !== -1 &&
+			           (r.dataset.name || '').toLowerCase().indexOf(nameQ) !== -1;
+			r.style.display = show ? '' : 'none';
 		});
+	},
+
+	toggleCountry: function(code, container) {
+		if (this.blocked.has(code)) this.blocked.delete(code);
+		else this.blocked.add(code);
+		this.refreshDot(code);
+		var cb = container ? container.querySelector('.cf-chk[data-code="' + code + '"]') : null;
+		if (cb) cb.checked = this.blocked.has(code);
+		this.refreshBlockedPanel(container);
+	},
+
+	refreshDot: function(code) {
+		var dot = document.getElementById('dot-' + code);
+		if (!dot) return;
+		var on = this.blocked.has(code);
+		dot.setAttribute('fill',   on ? '#ef5350' : '#66bb6a');
+		dot.setAttribute('stroke', on ? '#b71c1c' : '#1b5e20');
+	},
+
+	refreshBlockedPanel: function(container) {
+		var p = container ? container.querySelector('#cf-blocked-panel') : null;
+		if (p) p.innerHTML = this.buildBlockedList();
+	},
+
+	/* ── Save ─────────────────────────────────────────────────── */
+
+	handleSave: function(ev, container) {
+		var self = this;
+
+		/* sync list checkboxes into blocked set */
+		container.querySelectorAll('#cf-list-tbody .cf-chk').forEach(function(cb) {
+			if (cb.checked) self.blocked.add(cb.dataset.code);
+			else self.blocked.delete(cb.dataset.code);
+		});
+
+		var enabled = !!(container.querySelector('#cf-enable') || {}).checked;
+		var btn = ev.target;
+		btn.disabled = true;
+		btn.textContent = 'Applying…';
+
+		var blockContent;
+		if (!enabled || !this.blocked.size) {
+			blockContent = 'DISABLE\n';
+		} else {
+			blockContent = Array.from(this.blocked).join('\n') + '\n';
+		}
+
+		/* UCI firewall include management */
+		var fwCmd;
+		if (enabled && this.blocked.size) {
+			fwCmd = 'uci -q delete firewall.ngfw_country 2>/dev/null; ' +
+			        'uci set firewall.ngfw_country=include; ' +
+			        'uci set firewall.ngfw_country.path=/appdata/CountryBlock.sh; ' +
+			        'uci set firewall.ngfw_country.reload=1; ' +
+			        'uci commit firewall';
+		} else {
+			fwCmd = 'uci -q delete firewall.ngfw_country 2>/dev/null; uci commit firewall';
+		}
+
+		callWriteFile('/appdata/BlockCountry.txt', blockContent)
+			.then(function() { return callExec(fwCmd); })
+			.then(function() { return callExec('/usr/local/bin/CountryBlockSet.sh'); })
+			.then(function() {
+				btn.disabled = false;
+				btn.textContent = 'Save & Apply';
+				ui.addNotification(null, E('p', 'Country filter settings saved.'), 'info');
+			}).catch(function(err) {
+				btn.disabled = false;
+				btn.textContent = 'Save & Apply';
+				ui.addNotification(null, E('p', 'Save error: ' + (err.message || err)), 'error');
+			});
 	},
 
 	handleSaveReply: function() {}
