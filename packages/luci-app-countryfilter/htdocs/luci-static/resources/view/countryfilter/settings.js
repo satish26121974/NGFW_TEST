@@ -113,7 +113,7 @@ return view.extend({
 		return Promise.all([
 			L.resolveDefault(callReadFile('/appdata/BlockCountry.txt'), ''),
 			L.resolveDefault(callReadFile('/appdata/CountryIPAllowed.txt'), ''),
-			L.resolveDefault(callExec('ls /usr/share/xt_geoip/*.iv4 2>/dev/null | wc -l'), '0'),
+			L.resolveDefault(callExec('/usr/local/bin/COUNTRYFILT get'), '{}'),
 			pathsLoad
 		]);
 	},
@@ -265,7 +265,7 @@ return view.extend({
 	render: function(data) {
 		var self = this;
 		this.parseConfig(data[0], data[1]);
-		var geoipCount = parseInt((data[2] || '').trim()) || 0;
+		var geoipOk = false; try { geoipOk = JSON.parse(data[2] || '{}').geoip === true; } catch(e) {}
 
 		/* header bar */
 		var hdr = E('div', { 'class': 'cbi-section', style: 'padding:14px 18px;border-radius:8px;margin-bottom:10px' });
@@ -305,11 +305,11 @@ return view.extend({
 			'</div>' +
 
 			/* geoip status */
-			(geoipCount < 10
+			(!geoipOk
 				? '<div style="margin-top:10px;background:#fff3e0;border:1px solid #ff9800;border-radius:5px;padding:7px 12px;font-size:12px">' +
 					'&#9888; GeoIP database not found at /usr/share/xt_geoip/. Install the xt-geoip package.</div>'
 				: '<div style="margin-top:10px;background:#e8f5e9;border:1px solid #4caf50;border-radius:5px;padding:7px 12px;font-size:12px">' +
-					'&#10003; GeoIP database ready &mdash; ' + geoipCount + ' country files found</div>'
+					'&#10003; GeoIP database ready</div>'
 			);
 
 		/* map panel */
