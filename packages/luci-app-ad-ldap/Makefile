@@ -15,7 +15,7 @@ define Package/luci-app-ad-ldap
   SUBMENU:=3. Applications
   TITLE:=UniGr8ways AD/LDAP Authentication
   PKGARCH:=all
-  DEPENDS:=luci-base, python3, jq, +freeradius3
+  DEPENDS:=+luci-base +python3 +jq +freeradius3
 endef
 
 define Package/luci-app-ad-ldap/description

@@ -15,7 +15,7 @@ define Package/luci-app-tacacs
   SUBMENU:=3. Applications
   TITLE:=UniGr8ways TACACS+ Authentication
   PKGARCH:=all
-  DEPENDS:=luci-base, python3
+  DEPENDS:=+luci-base +python3
 endef
 
 define Package/luci-app-tacacs/description

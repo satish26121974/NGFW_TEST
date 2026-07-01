@@ -15,7 +15,7 @@ define Package/luci-app-2fa
   SUBMENU:=3. Applications
   TITLE:=UniGr8ways 2FA TOTP Authentication
   PKGARCH:=all
-  DEPENDS:=luci-base, python3
+  DEPENDS:=+luci-base +python3
 endef
 
 define Package/luci-app-2fa/description

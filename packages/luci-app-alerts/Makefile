@@ -15,7 +15,7 @@ define Package/luci-app-alerts
   SUBMENU:=3. Applications
   TITLE:=UniGr8ways Alert Notifications
   PKGARCH:=all
-  DEPENDS:=luci-base, jq
+  DEPENDS:=+luci-base +jq
 endef
 
 define Package/luci-app-alerts/description

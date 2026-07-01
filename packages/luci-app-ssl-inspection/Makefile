@@ -15,7 +15,7 @@ define Package/luci-app-ssl-inspection
   SUBMENU:=3. Applications
   TITLE:=UniGr8ways SSL/TLS Inspection
   PKGARCH:=all
-  DEPENDS:=luci-base, python3, +squid
+  DEPENDS:=+luci-base +python3 +squid
 endef
 
 define Package/luci-app-ssl-inspection/description

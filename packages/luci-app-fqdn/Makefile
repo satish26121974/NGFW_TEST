@@ -15,7 +15,7 @@ define Package/luci-app-fqdn
   SUBMENU:=3. Applications
   TITLE:=UniGr8ways FQDN-Based Firewall Rules
   PKGARCH:=all
-  DEPENDS:=luci-base, jq
+  DEPENDS:=+luci-base +jq
 endef
 
 define Package/luci-app-fqdn/description
