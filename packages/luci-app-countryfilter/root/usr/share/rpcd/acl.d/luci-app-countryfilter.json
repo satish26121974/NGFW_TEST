@@ -1,0 +1,24 @@
+{
+	"luci-app-countryfilter": {
+		"description": "Grant access to Country Filter configuration",
+		"read": {
+			"file": {
+				"/appdata/BlockCountry.txt": [ "read" ],
+				"/appdata/CountryIPAllowed.txt": [ "read" ],
+				"/usr/share/xt_geoip": [ "list" ]
+			},
+			"ubus": {
+				"luci": [ "exec" ]
+			}
+		},
+		"write": {
+			"file": {
+				"/appdata/BlockCountry.txt": [ "write" ],
+				"/appdata/CountryIPAllowed.txt": [ "write" ]
+			},
+			"ubus": {
+				"luci": [ "exec" ]
+			}
+		}
+	}
+}

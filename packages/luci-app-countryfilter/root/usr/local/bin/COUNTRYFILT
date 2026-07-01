@@ -1,0 +1,58 @@
+#!/bin/sh
+# COUNTRYFILT - Country Filter configuration manager
+# Usage: COUNTRYFILT get | COUNTRYFILT set '<json>'
+
+CONFIG="/appdata/BlockCountry.txt"
+ALLOWED="/appdata/CountryIPAllowed.txt"
+GEOIP_DIR="/usr/share/xt_geoip"
+
+case "$1" in
+get)
+    # Check geoip module availability
+    GEOIP_OK=false
+    [ -d "$GEOIP_DIR" ] && [ "$(ls $GEOIP_DIR/*.iv4 2>/dev/null | wc -l)" -gt 0 ] && GEOIP_OK=true
+
+    if [ ! -f "$CONFIG" ] || [ ! -s "$CONFIG" ]; then
+        printf '{"enabled":false,"blocked":[],"allowed":[],"geoip":%s}' "$GEOIP_OK"
+        exit 0
+    fi
+
+    LAST=$(tail -1 "$CONFIG" 2>/dev/null | tr -d '[:space:]')
+    if [ "$LAST" = "DISABLE" ]; then
+        printf '{"enabled":false,"blocked":[],"allowed":[],"geoip":%s}' "$GEOIP_OK"
+        exit 0
+    fi
+
+    BLOCKED=$(grep -v '^[[:space:]]*$' "$CONFIG" | grep -v '^DISABLE$' | \
+        awk 'BEGIN{ORS=""}{print (NR>1?",":"")"\"" $0 "\""}')
+    ALLOW_OUT=$(grep -v '^[[:space:]]*$' "$ALLOWED" 2>/dev/null | \
+        awk 'BEGIN{ORS=""}{print (NR>1?",":"")"\"" $0 "\""}')
+
+    printf '{"enabled":true,"blocked":[%s],"allowed":[%s],"geoip":%s}' \
+        "$BLOCKED" "$ALLOW_OUT" "$GEOIP_OK"
+    ;;
+
+set)
+    DATA="${2:-}"
+    [ -z "$DATA" ] && DATA=$(cat)
+
+    ENABLED=$(echo "$DATA" | jq -r '.enabled')
+
+    if [ "$ENABLED" = "false" ]; then
+        echo "DISABLE" > "$CONFIG"
+    else
+        echo "$DATA" | jq -r '.blocked[]' 2>/dev/null > "$CONFIG"
+        [ ! -s "$CONFIG" ] && echo "DISABLE" > "$CONFIG"
+    fi
+
+    echo "$DATA" | jq -r '.allowed[]' 2>/dev/null > "$ALLOWED"
+
+    /usr/local/bin/CountryBlockSet.sh >/dev/null 2>&1 &
+    printf '{"status":"ok"}'
+    ;;
+
+*)
+    printf '{"error":"Usage: COUNTRYFILT get|set"}'
+    exit 1
+    ;;
+esac

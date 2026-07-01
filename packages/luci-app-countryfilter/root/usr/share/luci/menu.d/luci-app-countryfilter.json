@@ -1,0 +1,10 @@
+{
+	"admin/services/countryfilter": {
+		"title": "Country Filter",
+		"order": 65,
+		"action": {
+			"type": "view",
+			"path": "countryfilter/settings"
+		}
+	}
+}
